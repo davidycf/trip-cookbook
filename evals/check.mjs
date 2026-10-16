@@ -25,7 +25,7 @@ const CONFIG = {
   quietMs: 500,                   // no in-flight same-origin requests for this long
   offlineReadyTimeoutMs: 15000,   // service worker controlling, or __TRIP_OFFLINE_READY__ === true
   overflowTolerancePx: 1,
-  fetchTimeoutMs: 10000,
+  fetchTimeoutMs: 30000,          // some official sites answer slowly
   maxRedirects: 5,
   scanChunkBytes: 1024 * 1024,   // large text is scanned in overlapping chunks, never skipped
   scanOverlapBytes: 8192,

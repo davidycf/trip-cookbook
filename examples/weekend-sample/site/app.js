@@ -200,12 +200,13 @@ Promise.all([fetch('ledger.json'), fetch('plan.json')])
 function showUpdateButton(go) { updateAction = go; renderStatus(); }
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').then(reg => {
+    if (!reg) return;   // service workers can be blocked; the site still works online
     const offer = () => {
       if (reg.waiting && navigator.serviceWorker.controller) showUpdateButton(() => reg.waiting.postMessage('activate-update'));
     };
     offer();
     reg.addEventListener('updatefound', () => reg.installing?.addEventListener('statechange', offer));
-  });
+  }).catch(() => {});
   let controlled = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (controlled) location.reload();

@@ -78,3 +78,5 @@ Readers must be able to tell these apart:
 ## Checking sources with the checker
 
 `node evals/check.mjs ... --fetch-sources` checks that each `sourced` URL is reachable now. A failure means the page didn't load, not that the claim is false. A success means the page loaded, not that it supports the claim; that judgment is yours, in the rubric.
+
+Some official sites refuse automated requests or answer very slowly, so reachability can fail for a source that's fine. Don't swap in a weaker source to make the check pass: read the page in a browser, keep the official source, and say in the report which sources failed the fetch and why.

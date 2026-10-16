@@ -57,6 +57,8 @@ Where each goes:
 
 ## Ending the interview
 
+Before you propose a day-by-day plan, make sure you know two things the first answers often leave out: **what the travellers want to do** (the trip's purpose, and each traveller's must-dos), and **anything they've already ruled out, and why**. If you don't know them yet, they are your next round's questions. A plan built on guessed interests looks finished but misses the point, and an option the user rejected before can slip back in unnoticed.
+
 Close with a short statement in plain words:
 
 > Here's what I understood: four travellers including two young children, ten days, two cities. The two hotels and the outbound flight are booked. Bedtime is around 21:00, so evenings stay near the hotel. The main interests are trains, food markets and one theme park day. Still open: the return flight time. Next I'll research the high-impact facts and then come back with two design directions.
