@@ -107,7 +107,7 @@ test('E5 passes against a reachable live server and fails against an unreachable
 });
 
 test('the page snippet documented in cookbook/build.md passes E1 to E5, including with service workers blocked', async () => {
-  const md = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'cookbook', 'build.md'), 'utf8');
+  const md = fs.readFileSync(new URL('../../cookbook/build.md', import.meta.url), 'utf8');
   const blocks = [...md.matchAll(/```js\n(.*?)```/gs)].map(m => m[1]);
   const pageSnippet = blocks.find(b => b.startsWith('// in the page'));
   assert.ok(pageSnippet, 'build.md page snippet not found');
