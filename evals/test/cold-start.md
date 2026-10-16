@@ -43,7 +43,13 @@ Findings:
 
 - `NOTES.md` opens with a line pointing to `AGENTS.md`, before its first `##` heading; N1 checks it (`build.md`, section 1).
 - `build.md` says the cache name changes with every content change too, and uses that as its example of a `## Context` trap. The sample's notes record it for `site/sw.js`.
-- **E6 · Offline copies of the baseline update** (required). The checker serves the baseline build from Git, prepares a browser offline with it, then switches the server to the current build. Every route must show the current content, or the browser must find a new service worker, which is an update the traveller can take. Otherwise E6 fails.
+- **E6 · Offline copies of the baseline update** (required). The checker follows the travellers' update steps in one browser:
+  - it prepares the baseline build from Git for offline use;
+  - it switches the server to the current build and opens each route online;
+  - it takes any update by closing every page and reopening the site, then prepares again;
+  - it goes offline.
+
+  Every route must then show the current content, and every file it loads must match the current build. Review of the first version showed that accepting "a new service worker was found" or "the page looks current online" lets stale assets, failed installs and network-first workers that never save fresh copies through, so E6 checks where the traveller ends up instead.
   - E6 is not applicable with `--base initial`.
   - It's also not applicable when the output directory isn't committed, and the report then asks for a manual check.
   - Run against the first round's projects, E6 fails case 1 on Sunday's route and passes case 2.
