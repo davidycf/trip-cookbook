@@ -46,7 +46,7 @@ my-trip/
 ## 3. Static output rules
 
 - **Entry point:** the output directory has an `index.html`.
-- **Relative URLs everywhere.** Use `./app.js`, `data/days.json`, never `/app.js`. The checker serves the site at both `/` and `/site/`; a root-absolute URL breaks the second, and it breaks project sites on hosts that serve from a subpath.
+- **Relative URLs, relative to each page.** Never `/app.js`: the checker serves the site at both `/` and `/site/`, and a root-absolute URL breaks the second, as well as project sites on hosts that serve from a subpath. Relative URLs resolve from the page's own location: on the entry page `app.js` is right, but a page at `day/3/index.html` needs `../../app.js`. Hash routes avoid this, because every view is the entry page. With path routes, have the build write depth-correct URLs, or give each nested page a relative `<base href="../../">`.
 - **Routes:** use hash routes (`#/day/3`) or real files for path routes (`day/3/index.html`). The checker has no "single-page app fallback" and no clean-URL rewriting, and a host's rewrite rules are not a substitute.
 - **No essential content from third parties at view time.** Maps, fonts and widgets from other origins may fail offline or on bad data. Essentials are served from the site's own files.
 - **Deterministic trip views.** Apart from content marked `data-offline-volatile`, a route renders the same content online and offline. Clocks, countdowns and rotating tips go inside volatile elements.
@@ -55,7 +55,7 @@ my-trip/
 
 `ledger.json` is the single source for what it lists. The site **derives** displayed ledger details from it, at runtime or during the build. Looking up an item by ID is fine; retyping its date, time or wording into page source is not.
 
-- **Runtime:** ship `ledger.json` in the output and read it with `fetch('ledger.json')`. Include it in the offline cache.
+- **Runtime:** ship `ledger.json` in the output and read it with `fetch('ledger.json')` from the entry page (with a depth-correct URL from nested pages). Include it in the offline cache.
 - **Build time:** your build reads `ledger.json` and renders from it.
 - **No build step:** copying is the build step. Use `cp ledger.json site/ledger.json` as the documented build command, never edit the copy by hand, and re-run it before every check.
 
@@ -112,19 +112,25 @@ The simplest approach that meets the checker's rules precaches every file at ins
 
 ```js
 // sw.js, at the root of the output directory
-const CACHE = 'trip-2027-03-01-a';   // change on every release
+const PREFIX = 'our-trip-';                // unique to this site
+const CACHE = PREFIX + '2027-03-01-a';     // change on every release
 const FILES = ['./', 'app.js', 'style.css', 'ledger.json', 'data/days.json', 'icon-192.png'];
 
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES)).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(FILES)));
 });
 
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(key => key !== CACHE).map(key => caches.delete(key))))
+      .then(keys => Promise.all(keys.filter(key => key.startsWith(PREFIX) && key !== CACHE).map(key => caches.delete(key))))
       .then(() => self.clients.claim())
   );
+});
+
+// Take over only when the traveller asks for the update (see the page code below).
+self.addEventListener('message', event => {
+  if (event.data === 'activate-update') self.skipWaiting();
 });
 
 self.addEventListener('fetch', event => {
@@ -138,18 +144,37 @@ self.addEventListener('fetch', event => {
 
 ```js
 // in the page
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    const offer = () => {
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdateButton(() => reg.waiting.postMessage('activate-update'));
+    };
+    offer();
+    reg.addEventListener('updatefound', () => reg.installing?.addEventListener('statechange', offer));
+  });
+  // A takeover by a new release reloads every open page, so none runs on another release's files.
+  // The first worker taking control (clients.claim on first install) does not reload.
+  let controlled = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (controlled) location.reload();
+    controlled = true;
+  });
+}
 ```
+
+`showUpdateButton` is yours to write: a small "New version available: update" button is enough.
 
 Rules that matter:
 
-- **Register with a relative path** (`sw.js`, not `/sw.js`), so the scope follows the deployment base path.
-- **Call `clients.claim()` on activate.** The checker requires the first visited page to be controlled without a reload, and so does a traveller who opens the site once.
-- **Cache the page under the key it's requested by.** Navigations to `#/day/3` request `./`, which is why `./` is in the list. If you use path routes, list each route's URL as the browser requests it.
-- **Change the cache name on every release,** and delete old caches on activate, so pages never mix files from two releases.
+- **Register relative to the page,** so the scope follows the deployment base path: `sw.js` from the entry page, `../../sw.js` from a page at `day/3/index.html`. Never `/sw.js`.
+- **Call `clients.claim()` on activate.** A first-time worker activates as soon as it installs, and `claim()` makes it control the page that installed it. The checker requires the first visited page to be controlled without a reload, and so does a traveller who opens the site once.
+- **Let updates wait.** Never call `skipWaiting()` unconditionally. A new release waits until every page of the old release is closed, so an open page never reads files from a release it wasn't built with. When the traveller taps "update", the page asks the waiting worker to take over and reloads as soon as it does.
+- **Delete only your own caches.** Give every cache name a prefix unique to this site, and on activate delete only this site's old caches. Several sites can share one origin (for example project sites under `https://<user>.github.io`), and they share its cache storage. Prefix `localStorage` keys for the same reason.
+- **Cache the page under the key it's requested by.** Navigations to `#/day/3` request `./`, which is why `./` is in the list. With path routes, list each route's URL relative to `sw.js`, for example `day/3/`.
+- **Change the cache name on every release.** The new release then installs into its own cache, and the old one stays intact until the old pages are gone.
 - **Never cache anything from `private/`.** It shouldn't be in the output at all.
 
-For a site that changes often, network-first with a short timeout and a cache fallback works too; save each release's files as one set.
+For a site that changes often, network-first with a short timeout and a cache fallback works too. The same rules apply: save each release's files as one set under a prefixed cache name, and let updates wait.
 
 ### Other preparation mechanisms
 
@@ -166,7 +191,7 @@ Write the preparation step on the site itself, for example a short "Before you g
 1. On Wi-Fi, open the site on each phone that will be used on the trip.
 2. Open each listed view once, or wait for "Saved for offline use".
 3. Check: switch on airplane mode, close the browser, reopen the site, and tap through a few days.
-4. Repeat after the last update before departure.
+4. After the last update before departure, open the site and tap "update" if it offers one (or close all of its tabs and reopen it), then repeat steps 2 and 3.
 
 Moving the site to a new host or domain is a new origin: offline copies and on-device choices don't carry over, and travellers must prepare again.
 
