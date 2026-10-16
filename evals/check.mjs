@@ -35,7 +35,7 @@ const SUITES = [
   { name: 'subpath', prefix: '/site/' },
 ];
 const PASS = 'PASS', FAIL = 'FAIL', SKIPPED = 'SKIPPED', NA = 'NOT APPLICABLE';
-const CHECK_IDS = ['G1', 'E1', 'E2', 'E3', 'E4', 'E5', 'L1', 'L2', 'L3', 'P1'];
+const CHECK_IDS = ['G1', 'E1', 'E2', 'E3', 'E4', 'E5', 'L1', 'L2', 'L3', 'P1', 'N1'];
 const CHECK_TITLES = {
   G1: 'Inputs, route list, Git context and baseline',
   E1: 'Routes load at the local root',
@@ -47,6 +47,7 @@ const CHECK_TITLES = {
   L2: 'Confirmed commitments annotated on the page',
   L3: 'Sourced facts have source and check date',
   P1: 'Privacy scan',
+  N1: 'Notes structure and pointers',
 };
 const USAGE = `Usage: node evals/check.mjs --site <static-output-dir> --base <initial|published|git-ref>
                          [--root <project-dir>] [--url <live-site-base-URL>] [--fetch-sources]`;
@@ -230,6 +231,255 @@ function routeProblem(r) {
   return null;
 }
 const routeUrl = (base, r) => (r === '.' ? base : r.startsWith('#') ? base + r : new URL(r, base).href);
+
+// ---------------------------------------------------------------- notes
+
+// The NOTES.md structure and pointer syntax: cookbook/build.md, section 1.
+const NOTES_HEADINGS = ['Where to look', 'Context', 'Open', 'Recent changes', 'Visibility', 'Build and deploy'];
+const NOTES_NONEMPTY = ['Visibility', 'Build and deploy'];
+const LEDGER_REF = /\bledger:([A-Za-z0-9][A-Za-z0-9._-]*)/g;
+
+// The next HTML comment opener outside inline code spans, or -1. A backtick run opens a
+// code span only when a run of the same length closes it later on the line.
+function commentStart(s) {
+  let i = 0;
+  for (;;) {
+    const open = s.indexOf('<!--', i);
+    const tick = s.indexOf('`', i);
+    if (open < 0) return -1;
+    if (tick < 0 || open < tick) return open;
+    const run = s.slice(tick).match(/^`+/)[0].length;
+    const close = s.slice(tick + run).search(new RegExp(`(?<!\`)\`{${run}}(?!\`)`));
+    i = close < 0 ? tick + run : tick + run + close + run;
+  }
+}
+
+// Splits NOTES.md into level-2 sections. Lines inside fenced code blocks never count as
+// headings or table rows, but they stay in the section's text. HTML comments aren't
+// rendered, so they count for nothing at all.
+function parseNotes(text) {
+  const sections = [];
+  let fence = null;
+  let comment = false;
+  let current = null;
+  text.split(/\r?\n/).forEach((raw, i) => {
+    let line = raw;
+    if (!fence) {
+      let visible = '';
+      let rest = line;
+      while (rest) {
+        if (comment) {
+          const end = rest.indexOf('-->');
+          if (end < 0) break;
+          comment = false;
+          rest = rest.slice(end + 3);
+        } else {
+          const start = commentStart(rest);
+          if (start < 0) { visible += rest; break; }
+          visible += rest.slice(0, start);
+          comment = true;
+          rest = rest.slice(start + 4);
+        }
+      }
+      if (visible !== line) {
+        if (!visible.trim()) { current?.lines.push({ text: raw, code: true, hidden: true }); return; }
+        line = visible;
+      }
+    }
+    const f = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (fence) {
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && !line.slice(f[0].length).trim()) fence = null;
+      current?.lines.push({ text: line, code: true });
+      return;
+    }
+    if (f) { fence = f[1]; current?.lines.push({ text: line, code: true }); return; }
+    const h = line.match(/^ {0,3}##(?!#)(?:[ \t]+(.*?))?[ \t]*$/);
+    if (h) {
+      current = { title: (h[1] ?? '').replace(/[ \t]+#+$/, '').trim(), line: i + 1, lines: [] };
+      sections.push(current);
+      return;
+    }
+    if (/^ {0,3}#(?:[ \t]|$)/.test(line)) { current = null; return; }
+    current?.lines.push({ text: line, code: false });
+  });
+  return sections;
+}
+
+function splitRow(line) {
+  let s = line.trim();
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|') && !s.endsWith('\\|')) s = s.slice(0, -1);
+  return s.split(/(?<!\\)\|/).map(c => c.trim());
+}
+
+// Backticked tokens in the Location column of every table that has one.
+function locationTokens(section) {
+  const tokens = [];
+  let tables = 0;
+  const rows = section.lines;
+  for (let i = 0; i + 1 < rows.length; i++) {
+    if (rows[i].code || rows[i + 1].code || !rows[i].text.includes('|')) continue;
+    if (!/^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(rows[i + 1].text) || !rows[i + 1].text.includes('-')) continue;
+    const col = splitRow(rows[i].text).findIndex(c => c.toLowerCase() === 'location');
+    if (col < 0) continue;
+    tables++;
+    let j = i + 2;
+    for (; j < rows.length && !rows[j].code && rows[j].text.includes('|') && rows[j].text.trim(); j++) {
+      const cell = splitRow(rows[j].text)[col] ?? '';
+      for (const m of cell.matchAll(/`([^`]+)`/g)) tokens.push(m[1].trim());
+    }
+    i = j - 1;
+  }
+  return { tables, tokens };
+}
+
+function relPathProblem(p) {
+  if (!p) return 'empty path';
+  if (p.startsWith('/') || /^[a-z]:/i.test(p) || /^[a-z][a-z0-9+.-]*:\/\//i.test(p)) return 'paths are relative to the project root';
+  if (p.includes('\\')) return 'backslashes are not allowed';
+  if (p.split('/').includes('..')) return 'parent traversal is not allowed';
+  return null;
+}
+
+// Resolves a dot-separated key path through own properties of non-array objects only.
+function keyPathProblem(value, keyPath) {
+  const segs = keyPath.split('.');
+  if (segs.some(s => !s)) return `key path "${keyPath}" has an empty segment`;
+  let v = value;
+  for (let i = 0; i < segs.length; i++) {
+    const at = segs.slice(0, i).join('.') || '(top level)';
+    if (Array.isArray(v)) return `${at} is an array; key paths don't go through arrays`;
+    if (!v || typeof v !== 'object') return `${at} is not an object`;
+    if (!Object.hasOwn(v, segs[i])) return `key "${segs[i]}" not found at ${at}`;
+    v = v[segs[i]];
+  }
+  return null;
+}
+
+// N1. Returns { result, details }. ledgerIds is null when ledger.json is unreadable.
+function checkNotes(root, ledgerIds) {
+  const file = path.join(root, 'NOTES.md');
+  if (!fs.existsSync(file)) return { result: FAIL, details: ['NOTES.md not found in the project root'] };
+  let text;
+  try { text = fs.readFileSync(file, 'utf8'); } catch (e) { return { result: FAIL, details: [`NOTES.md could not be read: ${short(e)}`] }; }
+  const fails = [];
+  const skips = [];
+
+  const sections = parseNotes(text);
+  const norm = s => s.toLowerCase().replace(/\s+/g, ' ');
+  const found = new Map(NOTES_HEADINGS.map(h => [h, sections.filter(s => norm(s.title) === norm(h))]));
+  let last = null;
+  for (const h of NOTES_HEADINGS) {
+    const list = found.get(h);
+    if (!list.length) { fails.push(`required heading "## ${h}" is missing`); continue; }
+    if (list.length > 1) { fails.push(`"## ${h}" appears ${list.length} times (lines ${list.map(s => s.line).join(', ')}); keep one`); continue; }
+    if (last && list[0].line < last.line) fails.push(`"## ${h}" (line ${list[0].line}) comes before "## ${last.title}" (line ${last.line}); the order is: ${NOTES_HEADINGS.join(', ')}`);
+    else last = { title: h, line: list[0].line };
+  }
+  for (const h of NOTES_NONEMPTY) {
+    const [s] = found.get(h);
+    if (s && found.get(h).length === 1 && !s.lines.some(l => !l.hidden && l.text.trim())) fails.push(`"## ${h}" is empty`);
+  }
+
+  const where = found.get('Where to look');
+  if (where.length === 1) {
+    const { tables, tokens } = locationTokens(where[0]);
+    if (!tables) fails.push('"## Where to look" has no table with a Location column');
+    else if (!tokens.length) fails.push('the "## Where to look" table has no backticked tokens in its Location column');
+
+    let routeLines = null;
+    let routesWhy = null;
+    const routesFile = path.join(root, 'evals', 'routes.txt');
+    try {
+      routeLines = new Set(fs.readFileSync(routesFile, 'utf8').split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith('# ')));
+    } catch (e) { routesWhy = fs.existsSync(routesFile) ? `evals/routes.txt could not be read (${short(e)})` : 'evals/routes.txt not found'; }
+    const unchecked = [];
+
+    for (const t of tokens) {
+      const route = t.startsWith('route:') ? t.slice(6).trim() : t.startsWith('#') ? t : null;
+      if (route !== null) {
+        if (!route) fails.push(`\`${t}\`: no route after "route:"`);
+        else if (!routeLines) unchecked.push(t);
+        else if (!routeLines.has(route)) fails.push(`\`${t}\`: "${route}" is not a line of evals/routes.txt`);
+        continue;
+      }
+      const hash = t.indexOf('#');
+      const rel = hash < 0 ? t : t.slice(0, hash);
+      const bad = relPathProblem(rel);
+      if (bad) { fails.push(`\`${t}\`: ${bad}`); continue; }
+      const abs = path.join(root, rel);
+      if (!fs.existsSync(abs)) { fails.push(`\`${t}\`: ${rel} does not exist${hash < 0 && !rel.includes('.') ? '; a site route needs the "route:" prefix' : ''}`); continue; }
+      if (hash < 0) continue;
+      if (!fs.statSync(abs).isFile()) { fails.push(`\`${t}\`: ${rel} is not a file`); continue; }
+      let data;
+      try { data = JSON.parse(fs.readFileSync(abs, 'utf8')); } catch { fails.push(`\`${t}\`: ${rel} is not valid JSON; key pointers work only into JSON files`); continue; }
+      const problem = keyPathProblem(data, t.slice(hash + 1));
+      if (problem) fails.push(`\`${t}\`: ${problem}`);
+    }
+    if (unchecked.length) skips.push(`route tokens not checked because ${routesWhy}: ${unchecked.map(t => `\`${t}\``).join(', ')}`);
+  }
+
+  // An exact ID wins; otherwise trailing full stops are read as sentence punctuation.
+  const refs = [...new Set([...text.matchAll(LEDGER_REF)].map(m => m[1]))];
+  if (refs.length && !ledgerIds) skips.push(`ledger references not checked because ledger.json could not be read: ${refs.map(r => `ledger:${r}`).join(', ')}`);
+  else {
+    for (const r of refs) {
+      const bare = r.replace(/\.+$/, '');
+      if (!ledgerIds.has(r) && !(bare && ledgerIds.has(bare))) fails.push(`ledger:${bare || r} has no matching id in ledger.json`);
+    }
+  }
+
+  return { result: fails.length ? FAIL : skips.length ? SKIPPED : PASS, details: [...fails, ...skips] };
+}
+
+// Change discovery: informational, never a verdict on the notes and never part of the exit code.
+const COPIED_FILES = new Set(['AGENTS.md', 'COOKBOOK_LICENSE', 'COOKBOOK_VERSION']);
+const isProjectFile = rel => rel !== 'NOTES.md' && !COPIED_FILES.has(rel)
+  && !/^(cookbook|reference|private|\.trip-check)\//.test(rel)
+  && !(rel.startsWith('evals/') && rel !== 'evals/routes.txt');
+const MAX_COMMITS_LISTED = 50;
+
+function notesChanges(repo, rootRel) {
+  const spec = rootRel || '.';
+  const notesRel = posix(path.join(rootRel, 'NOTES.md'));
+  const inRoot = p => (rootRel ? (p.startsWith(rootRel + '/') ? p.slice(rootRel.length + 1) : null) : p);
+  const out = { baseline: null, history: { available: false, reason: null, commits: [], more: 0 }, working_tree: [], notes_uncommitted: false };
+
+  const hasHead = !!tryGit(repo, ['rev-parse', '--verify', '--quiet', 'HEAD']);
+  const base = hasHead ? tryGit(repo, ['log', '-1', '--format=%H%x09%ad', '--date=short', '--', notesRel])?.trim() : '';
+  if (!base) out.history.reason = 'NOTES.md has never been committed, so there is no history to compare against';
+  else {
+    const [commit, date] = base.split('\t');
+    out.baseline = { commit, date };
+    out.history.available = true;
+    const log = tryGit(repo, ['-c', 'core.quotePath=false', 'log', '--no-renames', '--diff-merges=first-parent', '--format=%x1e%H%x1f%ad%x1f%s', '--date=short', '--name-only', `${commit}..HEAD`, '--', spec]) ?? '';
+    for (const rec of log.split('\x1e').slice(1)) {
+      const [head, ...rest] = rec.split('\n');
+      const [sha, d, subject] = head.split('\x1f');
+      const files = rest.map(s => s.trim()).filter(Boolean).map(inRoot).filter(p => p !== null && isProjectFile(p));
+      if (!files.length) continue;
+      if (out.history.commits.length < MAX_COMMITS_LISTED) out.history.commits.push({ commit: sha, date: d, subject, files });
+      else out.history.more++;
+    }
+  }
+
+  const status = tryGit(repo, ['-c', 'core.quotePath=false', 'status', '--porcelain=v1', '-z', '--no-renames', '--untracked-files=all', '--', spec]) ?? '';
+  const words = { M: 'modified', A: 'added', D: 'deleted', T: 'type changed', U: 'unmerged', '?': 'untracked' };
+  for (const entry of status.split('\0').filter(Boolean)) {
+    const xy = entry.slice(0, 2), p = inRoot(entry.slice(3));
+    if (p === null) continue;
+    if (p === 'NOTES.md') { out.notes_uncommitted = true; continue; }
+    if (!isProjectFile(p)) continue;
+    const state = [];
+    if (xy === '??') state.push('untracked');
+    else {
+      if (xy[0] !== ' ') state.push(`${words[xy[0]] ?? xy[0]}, staged`);
+      if (xy[1] !== ' ') state.push(`${words[xy[1]] ?? xy[1]}, not staged`);
+    }
+    out.working_tree.push({ path: p, status: state.join('; ') });
+  }
+  return out;
+}
 
 // ---------------------------------------------------------------- static server
 
@@ -876,6 +1126,24 @@ function renderMarkdown(rep) {
     for (const f of p.excepted) L.push(`- excepted ${f.scope} \`${f.path}\`${f.commit ? ` @ ${f.commit}` : ''}: ${f.pattern} ${f.match}`);
     L.push('');
   }
+  if (rep.notes_changes) {
+    const n = rep.notes_changes;
+    L.push('### Changed since the last notes edit', '');
+    L.push('Informational, with no result: project files changed since `NOTES.md` was last committed. Ordinary content edits don\'t need a notes edit. Use this list as evidence for R11.', '');
+    if (n.unavailable) L.push(`- Change discovery is unavailable: ${n.unavailable}.`);
+    else {
+      if (n.history.available) {
+        L.push(`- Last commit touching \`NOTES.md\`: ${n.baseline.commit.slice(0, 12)} (${n.baseline.date})`);
+        L.push(`- Commits since then that touch project files: ${n.history.commits.length + n.history.more}`);
+        for (const c of n.history.commits) L.push(`  - ${c.commit.slice(0, 12)} ${c.date} ${c.subject}: ${c.files.map(f => `\`${f}\``).join(', ')}`);
+        if (n.history.more) L.push(`  - and ${n.history.more} more`);
+      } else L.push(`- History comparison unavailable: ${n.history.reason}.`);
+      L.push(`- Uncommitted changes to project files: ${n.working_tree.length}`);
+      for (const w of n.working_tree) L.push(`  - \`${w.path}\` (${w.status})`);
+      if (n.notes_uncommitted) L.push(`- \`NOTES.md\` has uncommitted edits${n.history.available ? '; the history comparison above uses its last committed version' : ''}.`);
+    }
+    L.push('');
+  }
   L.push('## Agent Reviewed', '', 'Complete each applicable item with a result and reasons.', '');
   for (const a of rep.agent_reviewed) L.push(`- [ ] **${a.id}** ${a.item} — ${a.status}`);
   L.push('', '## User Confirmation Required', '', 'Mark each as covered by specific existing consent, not applicable (with a reason), or awaiting the user.', '');
@@ -899,7 +1167,7 @@ async function main() {
   const report = {
     tool: 'trip-cookbook check', format: 1, generated: new Date().toISOString(), config: CONFIG,
     inputs: { site: opts.site ?? null, root, url: opts.url ?? null, fetch_sources: opts.fetchSources, base: { arg: opts.base ?? null, commit: null }, published_tag: null, routes: [] },
-    checks: {}, third_party: [], privacy: null, agent_reviewed: [], user_confirmation: [],
+    checks: {}, third_party: [], privacy: null, notes_changes: null, agent_reviewed: [], user_confirmation: [],
   };
   const g1 = [...argErrors];
   const set = (id, result, details = [], extra = {}) => { report.checks[id] = { result, details, ...extra }; };
@@ -1113,6 +1381,12 @@ async function main() {
     for (const e of beforeList) if (!now.has(key(e))) allowChanges.push(`removed: ${e.path} (${e.pattern})`);
   }
 
+  // N1 needs no browser and no site, so it runs whatever happened to G1.
+  const ledgerIds = ledgerUsable ? new Set(items(ledger).map(x => x.item?.id).filter(id => typeof id === 'string')) : null;
+  const n1 = checkNotes(root, ledgerIds);
+  set('N1', n1.result, n1.details);
+  report.notes_changes = repoReal ? notesChanges(repoReal, rootRel) : { unavailable: 'no Git repository' };
+
   // G1.
   set('G1', g1.length ? FAIL : PASS, g1);
 
@@ -1125,7 +1399,7 @@ async function main() {
   report.user_confirmation.push({ kind: 'visibility-review', text: 'Visibility review: does everything that will be public stay within the approved publication scope? (first publication or any new category needs the user\'s confirmation)', status: 'awaiting authorization review' });
 
   // Exit code reflects automated checks only.
-  const required = ['G1', 'E1', 'E2', 'E3', 'E4', 'L1', 'L2', 'L3', 'P1', ...(opts.url ? ['E5'] : [])];
+  const required = ['G1', 'E1', 'E2', 'E3', 'E4', 'L1', 'L2', 'L3', 'P1', 'N1', ...(opts.url ? ['E5'] : [])];
   const ok = required.every(id => report.checks[id].result === PASS || report.checks[id].result === NA);
   const exitCode = argErrors.length ? 2 : ok ? 0 : 1;
   report.exit_code = exitCode;
@@ -1133,7 +1407,7 @@ async function main() {
   const scrub = v => (typeof v === 'string' ? redactText(v, terms)
     : Array.isArray(v) ? v.map(scrub)
     : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, scrub(x)])) : v);
-  for (const key of ['checks', 'third_party', 'agent_reviewed', 'user_confirmation']) report[key] = scrub(report[key]);
+  for (const key of ['checks', 'third_party', 'notes_changes', 'agent_reviewed', 'user_confirmation']) report[key] = scrub(report[key]);
 
   const outDir = path.join(root, '.trip-check');
   fs.mkdirSync(outDir, { recursive: true });

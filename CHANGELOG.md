@@ -2,6 +2,17 @@
 
 Each release explains what changed and whether it applies to sites built with an earlier version. Agents use this file during an upgrade (see `cookbook/upgrade.md`).
 
+## V0.1.1 · unreleased
+
+Project orientation: a fresh session, after a gap and with any agent, finds the current shape of the trip in a few targeted reads. **Applies to existing sites:** N1 is a new required check, and it fails until `NOTES.md` has its sections and pointer table, so one notes edit is needed (`cookbook/upgrade.md`, "From V0.1.0"). Nothing in the ledger, the site or the publication rules changes.
+
+- `NOTES.md` is required from the first build, as the project's index and short log: six required sections, a pointer table under `## Where to look`, `ledger:<id>` references, and a bounded `## Recent changes` log. Notes guide retrieval; the site and the ledger stay the source of truth (`cookbook/build.md`, section 1).
+- `AGENTS.md`: a procedure for resuming a project. Setup no longer creates agent-specific instruction files such as `CLAUDE.md`, and project state never goes in `AGENTS.md`.
+- Checker: N1 checks the notes' structure, pointers and ledger references, and reports SKIPPED when something they refer to can't be read. A new informational block, "Changed since the last notes edit", lists project files changed since `NOTES.md` was last committed, including uncommitted changes. It never affects the exit code.
+- Rubric: R11, notes guide correctly.
+- The weekend sample's `NOTES.md` is restructured as the worked example.
+- README: what to tell your agent when you come back to your trip.
+
 ## V0.1.0 · 2026-10-16
 
 First release. Nothing to upgrade from.
