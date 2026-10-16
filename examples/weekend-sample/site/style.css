@@ -1,0 +1,176 @@
+/* Weekend sample: a paper-and-ink timeline. No web fonts, so it looks the same offline. */
+:root {
+  --paper: #f5efe3;
+  --card: #fffaf0;
+  --ink: #1f2a2a;
+  --muted: #5d6766;
+  --rule: #ddd3c0;
+  --sea: #0f6b66;
+  --sea-soft: #dcefeb;
+  --booked: #0f6b66;
+  --tentative: #9a5b00;
+  --tentative-soft: #fbecd2;
+  --verify: #a3341f;
+  --verify-soft: #fae3dc;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14201f;
+    --card: #1b2a29;
+    --ink: #ebe5d8;
+    --muted: #a9b3b0;
+    --rule: #304240;
+    --sea: #5cc7bd;
+    --sea-soft: #1f3a37;
+    --booked: #5cc7bd;
+    --tentative: #f0b25c;
+    --tentative-soft: #3a2f1c;
+    --verify: #f08a72;
+    --verify-soft: #3d2620;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 17px/1.5 var(--sans);
+}
+a { color: var(--sea); }
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.2; }
+h1 { font-size: 2rem; margin: 0.2rem 0 0.4rem; }
+h2 { font-size: 1.35rem; margin: 2rem 0 0.75rem; }
+h3 { font-size: 1.1rem; margin: 1.25rem 0 0.4rem; }
+
+#status:empty { display: none; }
+#status {
+  position: sticky; top: 0; z-index: 3;
+  display: flex; gap: 0.75rem; align-items: center; justify-content: space-between;
+  padding: 0.5rem 1rem;
+  background: var(--ink); color: var(--paper);
+  font-size: 0.9rem;
+}
+#status button {
+  min-height: 44px; padding: 0 1rem;
+  border: 0; border-radius: 999px;
+  background: var(--paper); color: var(--ink); font: inherit; font-weight: 600;
+}
+
+.masthead {
+  padding: 1rem 1rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.brand {
+  display: inline-block;
+  font-family: var(--serif); font-size: 1.15rem; font-style: italic;
+  color: var(--ink); text-decoration: none;
+}
+.tabs {
+  display: flex; gap: 0.25rem;
+  margin: 0.5rem -1rem 0; padding: 0 1rem;
+  overflow-x: auto; scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a {
+  flex: none;
+  display: flex; align-items: center;
+  min-height: 44px; padding: 0 0.85rem;
+  border-bottom: 3px solid transparent;
+  color: var(--muted); text-decoration: none; font-weight: 600;
+}
+.tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--sea); }
+
+main { padding: 0.5rem 1rem 3rem; max-width: 40rem; margin: 0 auto; }
+main:focus { outline: none; }
+.kicker { margin: 1.25rem 0 0; color: var(--muted); font-size: 0.85rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.lede { color: var(--muted); margin: 0 0 1rem; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  margin: 0.75rem 0;
+}
+.today { border-color: var(--sea); background: var(--sea-soft); }
+
+/* Fixed items: a list of bookings, always recognizable. */
+.fixed-list { list-style: none; margin: 0; padding: 0; }
+.fixed-list li {
+  display: grid; grid-template-columns: 5.5rem 1fr; gap: 0 0.75rem;
+  padding: 0.6rem 0; border-top: 1px solid var(--rule);
+}
+.fixed-list li:first-child { border-top: 0; }
+.when { font-variant-numeric: tabular-nums; font-weight: 600; }
+.fixed-list .badge { grid-column: 2; justify-self: start; }
+
+.badge, .label {
+  display: inline-block;
+  padding: 0.05rem 0.5rem; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  vertical-align: 0.1em;
+}
+.badge.booked { background: var(--booked); color: var(--paper); }
+.badge.tentative, .label.estimate { background: var(--tentative-soft); color: var(--tentative); }
+.label.verify { background: var(--verify-soft); color: var(--verify); }
+.label.flex { background: transparent; color: var(--muted); border: 1px dashed var(--rule); }
+
+/* The day timeline: times on the left rail, fixed items drawn solid. */
+.timeline { list-style: none; margin: 1rem 0; padding: 0; }
+.timeline li {
+  position: relative;
+  display: grid; grid-template-columns: 3.5rem 1fr; gap: 0.75rem;
+  padding: 0 0 1.1rem;
+}
+.timeline li::before {
+  content: ""; position: absolute; left: 4.1rem; top: 1.4rem; bottom: 0;
+  border-left: 2px dotted var(--rule);
+}
+.timeline li:last-child::before { display: none; }
+.timeline .time { font-variant-numeric: tabular-nums; font-weight: 700; padding-top: 0.15rem; }
+.timeline .body {
+  position: relative;
+  padding: 0.1rem 0 0 1.1rem;
+}
+.timeline .body::before {
+  content: ""; position: absolute; left: -0.3rem; top: 0.45rem;
+  width: 0.7rem; height: 0.7rem; border-radius: 50%;
+  border: 2px solid var(--muted); background: var(--paper);
+}
+.timeline .is-fixed .body::before { border-color: var(--booked); background: var(--booked); }
+.timeline .is-fixed .title { font-weight: 700; }
+.timeline .is-tentative .body::before { border-color: var(--tentative); border-style: dashed; }
+.timeline .meta { color: var(--muted); font-size: 0.9rem; }
+
+.fact { margin: 0.35rem 0; font-size: 0.95rem; }
+.fact .src { font-size: 0.8rem; white-space: nowrap; }
+
+.daylinks { display: grid; gap: 0.75rem; }
+.daylink {
+  display: block; text-decoration: none; color: inherit;
+  background: var(--card); border: 1px solid var(--rule); border-radius: 14px; padding: 0.9rem 1rem;
+}
+.daylink strong { font-family: var(--serif); font-size: 1.15rem; }
+.daylink span { display: block; color: var(--muted); }
+
+.places h3 { margin-top: 1.5rem; }
+.place { padding: 0.6rem 0; border-top: 1px solid var(--rule); }
+.place .kind { color: var(--muted); font-size: 0.9rem; }
+.place .days { font-size: 0.85rem; color: var(--sea); }
+
+.todo { display: grid; grid-template-columns: 6.5rem 1fr; gap: 0.75rem; padding: 0.55rem 0; border-top: 1px solid var(--rule); }
+.todo .due { font-variant-numeric: tabular-nums; font-weight: 600; }
+.todo .owner { color: var(--muted); font-size: 0.9rem; }
+
+ol.steps { padding-left: 1.25rem; }
+ol.steps li { margin: 0.4rem 0; }
+
+.net { font-size: 0.9rem; color: var(--muted); }
+.net a { display: inline-flex; align-items: center; min-height: 44px; }
+
+.foot { padding: 1.5rem 1rem 2.5rem; color: var(--muted); font-size: 0.85rem; text-align: center; border-top: 1px solid var(--rule); }
+.loading { color: var(--muted); }
