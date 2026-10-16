@@ -27,4 +27,4 @@ node evals/check.mjs --root examples/weekend-sample --site examples/weekend-samp
 
 All required automated checks pass. E5 is skipped because the sample isn't deployed, and the report still lists the rubric items and the third-column items for review, as it would for a real site. The two approved decisions appear there as "added as approved": with `--base initial` the checker always lists them for review.
 
-`NOTES.md` is the sample's build record, in the format `cookbook/build.md` asks for.
+`NOTES.md` is the sample's index and build record, in the structure `cookbook/build.md` (section 1) asks for, and passes N1. Its pointers are relative to the sample's own folder.

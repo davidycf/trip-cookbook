@@ -50,7 +50,8 @@ Where each goes:
 | --- | --- |
 | Bookings and promises that must not change without the user | `ledger.json` commitments |
 | Key decisions and rejected options, with the reason and when to revisit | `ledger.json` decisions (`approved` only on explicit authorization) |
-| Requirements, preferences, open items, design rationale, public-safe | `NOTES.md` |
+| Requirements, preferences and rationale, public-safe | `NOTES.md`, under `## Context` |
+| Open items and blockers, public-safe | `NOTES.md`, under `## Open` |
 | Anything sensitive: codes, contact details, private reasons, consent quotes | `private/` |
 
 `NOTES.md` stays public-safe even in a private repository, because repositories get made public later.
@@ -67,4 +68,4 @@ Then tell the user which mode you're in and which steps you're skipping, as `AGE
 
 ## In later sessions
 
-In Change mode, skip the interview unless something material is ambiguous. Before asking anything, read `ledger.json` decisions and `NOTES.md`: the answer may already be there, and asking again for consent the user already gave is a failure, not caution.
+In Change mode, skip the interview unless something material is ambiguous. Before asking anything, read `ledger.json` decisions and `NOTES.md`, then the site content its pointers lead to: the answer may already be there, and asking again for consent the user already gave is a failure, not caution.

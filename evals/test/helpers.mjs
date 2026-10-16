@@ -149,9 +149,40 @@ self.addEventListener('fetch', e => {
 });
 `;
 
+// A minimal NOTES.md that passes N1 against compliantFiles().
+export const notesFile = ({ where = '| Overview | `route:.`, `ledger.json#commitments` |', context = '', open = '', recent = '', visibility = 'Test fixture: nothing is published.', build = '- No build; `site/` is the output.' } = {}) => `# Notes
+
+## Where to look
+
+| Topic | Location |
+| --- | --- |
+${where}
+
+## Context
+
+${context}
+
+## Open
+
+${open}
+
+## Recent changes
+
+${recent}
+
+## Visibility
+
+${visibility}
+
+## Build and deploy
+
+${build}
+`;
+
 export function compliantFiles(overrides = {}) {
   return {
     '.gitignore': 'private/\n.trip-check/\n',
+    'NOTES.md': notesFile(),
     'ledger.json': LEDGER,
     'evals/routes.txt': '# Entry\n.\n# Days\n#/day/1\n',
     'site/index.html': INDEX,
@@ -162,4 +193,6 @@ export function compliantFiles(overrides = {}) {
 }
 
 export const SITE = ['--site', 'site'];
+// Runs without a usable site, so no browser starts: for checks that don't need one.
+export const NO_SITE = ['--site', 'no-such-site'];
 export const detailsText = check => JSON.stringify(check.details);

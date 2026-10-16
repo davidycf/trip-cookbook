@@ -43,3 +43,7 @@ For publication: the baseline is the `published` tag (or `initial` before the fi
 ### R10 · Host behavior
 
 The chosen host preserves the checked behavior: HTTPS, deployment base path, clean-URL and redirect rules, service-worker script caching and service-worker scope. After the user accepts a publication, the `published` tag points at the deployed commit.
+
+### R11 · Notes guide correctly
+
+Given the changes listed under "Changed since the last notes edit", `NOTES.md` still leads a fresh agent to the right content: its pointers reach the content they name, its context and rationale still hold, open work matches the project, and the recent-changes log is bounded and useful. It stays readable in one sitting and reproduces no itinerary content. The change list is evidence for this review, never the review itself.

@@ -1,13 +1,80 @@
 # Build and deploy
 
 **When to read:** once a design direction is chosen, and for every change after that.
-**What you produce:** a static site directory that works on a phone and offline; a passing checker run; a deployment on the user's chosen host; a build record in `NOTES.md`.
+**What you produce:** a static site directory that works on a phone and offline; `NOTES.md`, with its index and build record; a passing checker run; a deployment on the user's chosen host.
 
 You choose the framework and the build tools. The Cookbook fixes only the output: **a directory of static files that any static host can serve over HTTPS.** No server-side code, no database.
 
-## 1. Record how this site is built
+## 1. `NOTES.md`: the project's index
 
-Keep a "Build and deploy" section in `NOTES.md` and keep it current. Later sessions, and upgrades, depend on it.
+Write `NOTES.md` from the first build, and keep it accurate. It's the project's **index and short log**: it tells the next session, after a gap of days and possibly with a different agent, where current content lives and how to read it. **The site and the ledger stay the source of truth.** The notes point at content; they never reproduce the itinerary, bookings or to-do list. Write the index while you write the first draft, when you know best where everything is.
+
+### Structure
+
+These level-2 headings are required, each once, in this order. You can add other level-2 headings anywhere.
+
+| Heading | Holds | Must not hold |
+| --- | --- | --- |
+| `## Where to look` | A pointer table: topic → location of the current content. Also one-line notes on important relationships, such as "activities link to places via `place`" | Copies of the content it points to |
+| `## Context` | Requirements, the rationale behind the design and plan, and implementation traps that aren't apparent from the site. Cite decisions as `ledger:<id>`; don't restate them | A second decision register; itinerary details |
+| `## Open` | Unfinished discussions, implementation work and blockers. Travel to-dos appear as a pointer to the site view that lists them | Copies of the site's to-do list |
+| `## Recent changes` | A short, bounded log (see below) | A full history; restatements of changed content |
+| `## Visibility` | The approved publication scope (`privacy.md`) | Private information |
+| `## Build and deploy` | The build record (see below) | Credentials or secrets |
+
+`## Context`, `## Open` and `## Recent changes` may be empty, or say "None", when there's nothing to record. `## Where to look` must hold its pointer table, and `## Visibility` and `## Build and deploy` must not be empty. Keep the whole file readable in one sitting.
+
+`NOTES.md` stays public-safe. Booking numbers, confirmation codes, identity and payment details and credentials belong in `private/`. A public-safe status such as "awaiting booking confirmation" or "boat trip on hold, payment due by 14 May" is fine in `## Open`.
+
+### Pointers
+
+The checker (N1) checks pointers only where they're declared: backticked tokens in the **Location** column of the table under `## Where to look`. Everything else is ordinary prose.
+
+```markdown
+## Where to look
+
+| Topic | Location |
+| --- | --- |
+| Daily plans | `site/data/days.json#days`, `#/day/2027-04-10` |
+| Stays | `site/data/plan.json#stays` |
+| Travel to-dos | `#/prepare` |
+| Overview | `route:.` |
+| Booking details | `ledger.json`, rendered by `site/app.js` |
+```
+
+Token forms, recognized in this order. Paths are relative to the project root:
+
+| Form | Meaning | Checked for |
+| --- | --- | --- |
+| `route:<entry>` | A site route of any form: `.`, a hash route, a path route such as `day/sunday/`, or a path with a hash such as `day.html#map` | `<entry>` is exactly a line of `evals/routes.txt` |
+| `#…` | Shorthand for `route:#…` | As above |
+| `path#a.b` | A key path in a JSON file | The file parses as JSON, and the dot-separated keys resolve |
+| `path` | A file or directory | Exists |
+
+- Anything that looks like a site route needs `route:`. Without it, `day/sunday/` is a project path, and `day.html#map` is a key path into `day.html`.
+- Key paths go through object keys only, never into arrays: indices go stale with ordinary edits. Point at the array itself (`plan.json#days`) and the route that shows it.
+- Point at JSON keys only; for other files, point at the file.
+- **Ledger references** are written `ledger:<id>` and may appear anywhere in `NOTES.md`. N1 checks each against `ledger.json`. A full stop right after the ID isn't part of it.
+
+N1 shows that targets exist. Whether they're the right targets is rubric item R11.
+
+### When to edit the notes
+
+Update `NOTES.md` when a change affects:
+
+- where information lives;
+- how it should be interpreted; or
+- what the next session needs in order to resume.
+
+Ordinary content edits don't require a notes edit. The test for a `## Recent changes` entry: *would a fresh agent look in the wrong place, or misread something, without it?* Changing a restaurant usually fails that test. Replacing a destination, or introducing activity swapping, passes it.
+
+- **Entry format:** one or two lines: the date, what changed in meaning, where the current content now lives, and a commit or PR reference where useful. Don't reproduce the new details.
+- **Keep the log bounded:** about 5–10 entries, never append-only. When it needs trimming, promote each old entry (its pointer into `## Where to look`, any rationale that still matters into `## Context`) or drop it; Git keeps the history. Nobody should need to replay the log to reconstruct the present.
+- **When to tidy:** within the ordinary change, before the final checks and publication. Never after deployment or user acceptance: a notes edit then is a new source change, and with automatic deploys, pushing it publishes again (section 8). A publication is a chance to review the log, not a mandatory pruning.
+
+### The build record
+
+`## Build and deploy` records how this site is built and deployed. Later sessions, and upgrades, depend on it.
 
 ```markdown
 ## Build and deploy
@@ -23,6 +90,8 @@ Keep a "Build and deploy" section in `NOTES.md` and keep it current. Later sessi
 - Offline preparation for travellers: see the "Before you go" page at `#/prepare`
 - Deploy steps: merge to `main` (publishing; needs the user's go-ahead)
 ```
+
+`examples/weekend-sample/NOTES.md` in the Cookbook is a complete example.
 
 ## 2. Project layout
 
@@ -41,7 +110,7 @@ my-trip/
 
 - The deployable directory is its own folder. The checker refuses a `--site` that is the repository root, or that contains `private/` or `.git`.
 - `.gitignore` excludes at least `private/`, `evals/node_modules/` and `.trip-check/`.
-- Whether the build output is committed depends on the host: committed for a branch-based deploy (for example GitHub Pages from `/docs`), ignored when the host builds it. Record the choice in `NOTES.md`.
+- Whether the build output is committed depends on the host: committed for a branch-based deploy (for example GitHub Pages from `/docs`), ignored when the host builds it. Record the choice under `## Build and deploy` in `NOTES.md`.
 
 ## 3. Static output rules
 
@@ -221,7 +290,7 @@ node evals/check.mjs --site <output-dir> --base <initial|published|git-ref> \
 - `--url` adds the live check (E5) after deployment. Without it, deployment acceptance isn't established.
 - `--fetch-sources` also checks that sourced URLs are reachable now.
 
-The checker serves the output itself at `/` and `/site/`, in fresh browsers at 390px. It visits every listed route, tests offline after preparation, validates the ledger, compares it with the baseline, and scans for private data. It writes `.trip-check/report.md` and `.trip-check/report.json`.
+The checker serves the output itself at `/` and `/site/`, in fresh browsers at 390px. It visits every listed route, tests offline after preparation, validates the ledger, compares it with the baseline, scans for private data, and checks `NOTES.md`'s structure and pointers. It also lists the project files changed since `NOTES.md` was last committed, as information for rubric item R11. It writes `.trip-check/report.md` and `.trip-check/report.json`.
 
 ### Reading the result
 
@@ -340,7 +409,7 @@ Cloudflare also offers static hosting through Workers; the same rules apply.
 Publish only when all of these hold:
 
 1. The build is fresh, and the checker's required automated checks pass at both prefixes.
-2. Rubric items in `evals/rubric.md` are resolved, with reasons.
+2. Rubric items in `evals/rubric.md` are resolved, with reasons. `NOTES.md` was updated and tidied within this change, before these checks (section 1).
 3. Every protected change has specific authorization, and the user has answered every open third-column item.
 4. The visibility review is done (`privacy.md`), and covers this content.
 5. The deployment matches the checked output: same build, same path.

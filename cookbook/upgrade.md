@@ -27,6 +27,12 @@ For each change, decide which of these it is, for this site:
 
 Never overwrite local edits to copied files silently. If the project's `cookbook/` or `AGENTS.md` was edited, show the conflict and ask.
 
+`NOTES.md` belongs to the project, not the Cookbook: never replace it. When a release changes what the notes need (as V0.1.1 did), propose edits to the existing notes instead. Leave files that an earlier setup created alongside `AGENTS.md`, such as a `CLAUDE.md` pointer, alone unless the user asks to remove them.
+
+### From V0.1.0
+
+V0.1.1 makes `NOTES.md` a structured index, checked by N1 (`build.md`, section 1). Propose adding the missing sections and the pointer table, built from the existing notes and a look at the site: keep what's already there, move it under the matching headings, and add pointers to where the current content lives. Nothing in the ledger, the site or the published content changes.
+
 ## 3. Propose, then wait
 
 Write a short proposal for the user:

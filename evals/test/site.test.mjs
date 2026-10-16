@@ -8,7 +8,7 @@ import { makeProject, runCheck, compliantFiles, APP, INDEX, SITE, detailsText, c
 test('compliant mini site passes every required local check at root and subpath', async () => {
   const dir = makeProject(compliantFiles());
   const { code, report } = await runCheck(dir, [...SITE, '--base', 'initial']);
-  for (const id of ['G1', 'E1', 'E2', 'E3', 'E4', 'L1', 'L2', 'L3', 'P1']) assert.equal(report.checks[id].result, 'PASS', `${id}: ${detailsText(report.checks[id])}`);
+  for (const id of ['G1', 'E1', 'E2', 'E3', 'E4', 'L1', 'L2', 'L3', 'P1', 'N1']) assert.equal(report.checks[id].result, 'PASS', `${id}: ${detailsText(report.checks[id])}`);
   assert.equal(report.checks.E5.result, 'SKIPPED');
   assert.equal(report.checks.L3.sub.reachability, 'SKIPPED');
   assert.equal(code, 0);

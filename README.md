@@ -62,6 +62,16 @@ npm --prefix evals ci
 npm --prefix evals exec -- playwright install chromium
 ```
 
+### Coming back later
+
+When you come back to your trip, start with:
+
+```text
+Read AGENTS.md and NOTES.md.
+```
+
+Your agent keeps `NOTES.md` as a short index of where everything lives in your project, so a new session, with any agent, picks up from the site itself rather than from memory.
+
 ## Visibility
 
 Decide early who can see what. There are three zones:

@@ -53,7 +53,7 @@ Before you push to a public repository, open a public pull request, or publish a
 
 1. Look at the **actual content** that will become public: rendered pages, the ledger, `NOTES.md`, images, and, for a public repository, the history.
 2. Summarize, for the user, the categories it reveals, with examples: "Your family name appears on the home page; both children's ages appear on day 3; the hotel names and dates for all nine nights are listed." Include personal circumstances shown on the page, not just names and places.
-3. Ask for confirmation, and wait. Record the approved scope in `NOTES.md` in public-safe words ("Approved to publish: first names, children's ages, hotel names and dates; not: home city").
+3. Ask for confirmation, and wait. Record the approved scope under `## Visibility` in `NOTES.md`, in public-safe words ("Approved to publish: first names, children's ages, hotel names and dates; not: home city").
 
 ### On every later change
 

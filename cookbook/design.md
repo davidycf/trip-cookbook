@@ -37,7 +37,7 @@ Example pairs of structurally different directions:
 
 Keep the directions honest: don't present a strawman to make your favourite look good. Then recommend one, with your reason.
 
-When the user chooses, record it as an approved decision in `ledger.json` (with the rejected direction in `rejected`), and the rationale in `NOTES.md`. Later sessions read both before changing the design.
+When the user chooses, record it as an approved decision in `ledger.json` (with the rejected direction in `rejected`), and the rationale under `## Context` in `NOTES.md`, citing the decision as `ledger:<id>`. Once the site exists, add each main view and data file to the pointer table under `## Where to look`. Later sessions read both before changing the design.
 
 ## Use the reference without copying it
 

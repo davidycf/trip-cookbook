@@ -41,7 +41,7 @@ When requirements are already sufficient, state what you understood and proceed.
 | Build and deploy | `cookbook/build.md` |
 | Before any commit, push or deployment | `cookbook/privacy.md` |
 | Review | `evals/rubric.md` |
-| Any change | `ledger.json` decisions and `NOTES.md` first, so you respect what is settled |
+| Returning to a project, or any change | [Resuming a project](#resuming-a-project) below, so you respect what is settled |
 | Upgrade | `cookbook/upgrade.md` and the Cookbook's `CHANGELOG.md` |
 
 ## Setting up a new site
@@ -51,7 +51,7 @@ When requirements are already sufficient, state what you understood and proceed.
 3. Clone the Cookbook into a temporary directory outside the project, at the latest release tag (or `main` if none exists):
    `git clone --depth 1 --branch <tag> https://github.com/davidycf/trip-cookbook <temp-dir>`
 4. Copy these from the clone into the project:
-   - `AGENTS.md`, to the project root, so later sessions in the project start from these rules. If your agent reads a different instructions file (for example `CLAUDE.md`), create that file too, containing only a pointer to `AGENTS.md`.
+   - `AGENTS.md`, to the project root, so later sessions in the project start from these rules. Don't create agent-specific instruction files (such as `CLAUDE.md`): the project stays agent-neutral, and every agent starts from `AGENTS.md`. Never put project state in `AGENTS.md` either, because upgrades replace it; project state goes in `NOTES.md`.
    - `cookbook/`, `reference/` and `evals/`, leaving out `evals/test/`.
    - `LICENSE`, saved as `COOKBOOK_LICENSE`. The MIT notice must travel with the copied material, and naming it this way leaves `LICENSE` free for the user's own choice.
 
@@ -59,6 +59,18 @@ When requirements are already sufficient, state what you understood and proceed.
 5. Install the checker: `npm --prefix evals ci`, then `npm --prefix evals exec -- playwright install chromium`.
 6. Create `private/` for booking details, consent records and `private/sensitive.txt` (terms the privacy scan must never find in public output, one per line).
 7. Keep the deployable site in its own directory (for example `site/`, `docs/` or a build output directory), never the repository root.
+8. Start `NOTES.md` with the structure in `cookbook/build.md`, section 1, and fill its index as you build the first draft, while you know where everything is.
+
+## Resuming a project
+
+`NOTES.md` is the project's index and short log: where current content lives, how to read it, and what's open. The site and the ledger hold the content itself.
+
+1. Read this file, then `NOTES.md`.
+2. When resuming after a gap, or when changes made elsewhere may matter, run the checker (the command is under `## Build and deploy` in `NOTES.md`) and read "Changed since the last notes edit" in its report. It lists project files changed since the notes were last committed, including uncommitted changes. Don't run it as a ritual before every answer.
+3. Read the specific site content and ledger entries the question needs, starting from the notes' pointers. Read further when that's what it takes to get the answer right.
+4. **Notes guide retrieval; they don't establish facts.** A booking, time or task counts as current only once you've read it in the ledger or on the site. The user, or another agent, may have changed the site without touching the notes.
+
+When a change affects where information lives, how it should be read, or what the next session needs, update `NOTES.md` in the same change, before the final checks (`cookbook/build.md`, section 1). Ordinary content edits don't need a notes edit.
 
 ## The ledger
 
