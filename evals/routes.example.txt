@@ -1,0 +1,12 @@
+# Route list for evals/check.mjs. Copy this file to evals/routes.txt and edit it.
+#
+# One route per line. List every view the travellers need, including views
+# reached through navigation.
+#   .              the entry page
+#   #/day/1        a hash route (start hash routes with "#/")
+#   days/1/        a path route; it must exist as a file in the output
+#   day.html#map   a path followed by a hash
+# Lines starting with "# " (hash and space) are comments; blank lines are ignored.
+# No absolute URLs, no leading slash, no "../".
+
+.
