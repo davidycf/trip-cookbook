@@ -1,5 +1,7 @@
 # Notes
 
+Working rules for this project: AGENTS.md. Read it before changing anything.
+
 The weekend sample's index and log, in the structure `cookbook/build.md` asks for. It says where current content lives and how to read it; the site and the ledger hold the content itself. Everything here is sample data.
 
 ## Where to look
@@ -23,6 +25,7 @@ The weekend sample's index and log, in the structure `cookbook/build.md` asks fo
 - Preferences: slow mornings, seafood, one "proper" activity per day.
 - Design: a single-page timeline per day, chosen over a map-led layout (ledger:timeline-layout). Two days with few places don't need a map, and a timeline makes the fixed items easy to spot.
 - Adopted principles: fixed items separate from flexible ones; one main activity per day; places stored once with the days that pass them; to-dos by owner and deadline; the way back to the guesthouse on every day page.
+- Trap: every change to a file the service worker caches (`plan.json`, `ledger.json`, `app.js`, `style.css`, the page) needs a new `CACHE` name in `site/sw.js`. Otherwise phones that prepared the site keep the old copy and are never offered the update.
 - Trap: every view is a hash route on one page, so the service worker caches `./` for all of them. A new view needs its route in `evals/routes.txt` and its files in `site/sw.js`.
 
 ## Open

@@ -59,7 +59,7 @@ When requirements are already sufficient, state what you understood and proceed.
 5. Install the checker: `npm --prefix evals ci`, then `npm --prefix evals exec -- playwright install chromium`.
 6. Create `private/` for booking details, consent records and `private/sensitive.txt` (terms the privacy scan must never find in public output, one per line).
 7. Keep the deployable site in its own directory (for example `site/`, `docs/` or a build output directory), never the repository root.
-8. Start `NOTES.md` with the structure in `cookbook/build.md`, section 1, and fill its index as you build the first draft, while you know where everything is.
+8. Start `NOTES.md` with the structure in `cookbook/build.md`, section 1: an opening line pointing back to this file, then the required sections. Fill its index as you build the first draft, while you know where everything is.
 
 ## Resuming a project
 

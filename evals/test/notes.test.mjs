@@ -43,6 +43,9 @@ test('missing notes, missing, duplicated or reordered headings, and missing toke
     assert.match(detailsText(check), pattern);
   };
   await fail({ 'NOTES.md': null }, /NOTES\.md not found/);
+  await fail({ 'NOTES.md': notesFile().replace('Working rules for this project: AGENTS.md.\n', '') }, /must open, before its first \\"##\\" heading, with a line pointing to AGENTS.md/);
+  await fail({ 'NOTES.md': notesFile().replace('Working rules for this project: AGENTS.md.\n', '<!-- Working rules: AGENTS.md -->\n') }, /pointing to AGENTS.md/);
+  await fail({ 'NOTES.md': notesFile().replace('Working rules for this project: AGENTS.md.\n', '').replace('## Context\n\n', '## Context\n\nRules: AGENTS.md.\n') }, /pointing to AGENTS.md/);
   const full = notesFile();
   for (const h of ['Where to look', 'Context', 'Open', 'Recent changes', 'Visibility', 'Build and deploy']) {
     await fail({ 'NOTES.md': full.replace(`## ${h}\n`, '') }, new RegExp(`required heading \\\\"## ${h}\\\\" is missing`));

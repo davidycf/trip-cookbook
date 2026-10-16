@@ -31,7 +31,7 @@ Never overwrite local edits to copied files silently. If the project's `cookbook
 
 ### From V0.1.0
 
-V0.1.1 makes `NOTES.md` a structured index, checked by N1 (`build.md`, section 1). Propose adding the missing sections and the pointer table, built from the existing notes and a look at the site: keep what's already there, move it under the matching headings, and add pointers to where the current content lives. Nothing in the ledger, the site or the published content changes.
+V0.1.1 makes `NOTES.md` a structured index, checked by N1 (`build.md`, section 1). Propose adding the opening line that points to `AGENTS.md`, the missing sections and the pointer table, built from the existing notes and a look at the site: keep what's already there, move it under the matching headings, and add pointers to where the current content lives. Nothing in the ledger or the published content changes. V0.1.1 also adds E6, which fails when content changed since the baseline but the service worker didn't; if it fails, change the cache name.
 
 ## 3. Propose, then wait
 

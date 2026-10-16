@@ -9,9 +9,11 @@
 // errors. A zero exit code is never permission to publish.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import Ajv2020Module from 'ajv/dist/2020.js';
 import { chromium } from 'playwright';
@@ -35,7 +37,7 @@ const SUITES = [
   { name: 'subpath', prefix: '/site/' },
 ];
 const PASS = 'PASS', FAIL = 'FAIL', SKIPPED = 'SKIPPED', NA = 'NOT APPLICABLE';
-const CHECK_IDS = ['G1', 'E1', 'E2', 'E3', 'E4', 'E5', 'L1', 'L2', 'L3', 'P1', 'N1'];
+const CHECK_IDS = ['G1', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'L1', 'L2', 'L3', 'P1', 'N1'];
 const CHECK_TITLES = {
   G1: 'Inputs, route list, Git context and baseline',
   E1: 'Routes load at the local root',
@@ -43,6 +45,7 @@ const CHECK_TITLES = {
   E3: 'Routes load without overflow under /site/',
   E4: 'Offline after preparation, both prefixes',
   E5: 'Live routes load without overflow',
+  E6: 'Offline copies of the baseline update',
   L1: 'Ledger schema and field rules',
   L2: 'Confirmed commitments annotated on the page',
   L3: 'Sourced facts have source and check date',
@@ -254,11 +257,13 @@ function commentStart(s) {
   }
 }
 
-// Splits NOTES.md into level-2 sections. Lines inside fenced code blocks never count as
-// headings or table rows, but they stay in the section's text. HTML comments aren't
-// rendered, so they count for nothing at all.
+// Splits NOTES.md into level-2 sections, plus the visible text before the first one
+// (sections.preamble). Lines inside fenced code blocks never count as headings or table
+// rows, but they stay in the section's text. HTML comments aren't rendered, so they count
+// for nothing at all.
 function parseNotes(text) {
   const sections = [];
+  const preamble = [];
   let fence = null;
   let comment = false;
   let current = null;
@@ -300,8 +305,10 @@ function parseNotes(text) {
       return;
     }
     if (/^ {0,3}#(?:[ \t]|$)/.test(line)) { current = null; return; }
+    if (!current && !sections.length) { preamble.push(line); return; }
     current?.lines.push({ text: line, code: false });
   });
+  sections.preamble = preamble;
   return sections;
 }
 
@@ -366,6 +373,7 @@ function checkNotes(root, ledgerIds) {
   const skips = [];
 
   const sections = parseNotes(text);
+  if (!sections.preamble.some(l => l.includes('AGENTS.md'))) fails.push('NOTES.md must open, before its first "##" heading, with a line pointing to AGENTS.md for the working rules');
   const norm = s => s.toLowerCase().replace(/\s+/g, ' ');
   const found = new Map(NOTES_HEADINGS.map(h => [h, sections.filter(s => norm(s.title) === norm(h))]));
   let last = null;
@@ -496,8 +504,11 @@ const TYPES = {
 // Plain static-file and directory-index resolution under one prefix. No SPA fallback,
 // no clean-URL rewriting, no caching (offline success must come from the site's own storage).
 function startServer(siteReal, prefix) {
+  // siteReal may be { dir }, so a test can switch what is served under the same origin.
+  const rootOf = typeof siteReal === 'string' ? () => siteReal : () => siteReal.dir;
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
+      const siteReal = rootOf();
       const send = (code, body = '', headers = {}) => {
         res.writeHead(code, { 'Cache-Control': 'no-store', ...headers });
         res.end(req.method === 'HEAD' ? '' : body);
@@ -746,6 +757,167 @@ async function runSuite(browser, suite, siteReal, routes, confirmedIds, thirdPar
     await srv.close();
   }
   return results;
+}
+
+// E6. Follows the travellers' update steps (cookbook/build.md, section 6) in one browser:
+// prepare the baseline build offline; the server switches to the current build; open each
+// route online; take any update by closing every page and reopening; prepare again; go
+// offline. Every route must then show the current content, and every same-origin response
+// the offline page itself received must match the current build byte for byte, so style,
+// image and data changes count. A response that can't be read makes E6 incomplete.
+async function settleUpdate() {
+  const reg = await navigator.serviceWorker?.getRegistration();
+  if (!reg) return { failed: false };
+  await reg.update().catch(() => {});
+  const w = reg.installing;
+  if (!w) return { failed: false };
+  const state = await new Promise(resolve => {
+    const done = () => { if (w.state !== 'installing') resolve(w.state); };
+    w.addEventListener('statechange', done);
+    setTimeout(() => resolve(w.state), 15000);
+    done();
+  });
+  return { failed: state === 'redundant' || state === 'installing', state };
+}
+
+async function runUpdate(browser, baseDir, siteReal, routes, expected) {
+  const served = { dir: baseDir };
+  const srv = await startServer(served, '/');
+  const context = await browser.newContext({ viewport: CONFIG.viewport });
+  const out = { notApplicable: null, details: [], notes: [], incomplete: [] };
+  const fail = (route, problem) => out.details.push({ route, problem });
+  const visit = async (route, then, before) => {
+    const page = await context.newPage();
+    const st = instrument(page, srv.origin);
+    before?.(page);
+    try {
+      const resp = await page.goto(routeUrl(srv.base, route), { waitUntil: 'load', timeout: CONFIG.readyTimeoutMs });
+      if (!resp || resp.status() >= 400) throw new Error(resp ? `HTTP ${resp.status()}` : 'no document response');
+      await waitReady(page, st);
+      return await then(page, st);
+    } finally {
+      await page.close();
+    }
+  };
+  const fileHash = new Map();
+  const currentHash = url => {
+    let rel = decodeURIComponent(new URL(url).pathname).replace(/^\//, '');
+    if (rel === '' || rel.endsWith('/')) rel += 'index.html';
+    const file = path.join(siteReal, rel);
+    if (!file.startsWith(siteReal + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return undefined;
+    if (!fileHash.has(file)) fileHash.set(file, createHash('sha256').update(fs.readFileSync(file)).digest('hex'));
+    return fileHash.get(file);
+  };
+  try {
+    // 1. Prepare the baseline. Routes it doesn't have yet are new in this build.
+    let prepared = 0;
+    for (const route of routes) {
+      try {
+        const ready = await visit(route, page => page.evaluate(offlineReady, CONFIG.offlineReadyTimeoutMs));
+        if (ready.ok) prepared++;
+        else out.notes.push(`${route}: the baseline build does not prepare it for offline use (${ready.reason})`);
+      } catch (e) {
+        out.notes.push(`${route}: not in the baseline build (${short(e)}); checked after the update only`);
+      }
+    }
+    if (!prepared) { out.notApplicable = 'the baseline build prepares no listed route for offline use, so there is no offline copy to update'; return out; }
+
+    // 2. The new build is live: open each route online and let any update install.
+    served.dir = siteReal;
+    for (const route of routes) {
+      try {
+        const r = await visit(route, page => page.evaluate(settleUpdate));
+        if (r.failed) fail(route, `a new service worker was found but did not install (state: ${r.state}); prepared browsers keep the baseline`);
+      } catch (e) {
+        fail(route, `did not load after the switch to the current build: ${short(e)}`);
+      }
+    }
+
+    // 3. Take the update the way a traveller can: close every page, then reopen the site.
+    for (let attempt = 0; ; attempt++) {
+      for (const p of context.pages()) await p.close();
+      const waiting = await visit(routes[0], page => page.evaluate(async () => !!(await navigator.serviceWorker?.getRegistration())?.waiting));
+      if (!waiting) break;
+      if (attempt === 2) { fail(routes[0], 'an update stays waiting even after every page is closed and the site reopened'); break; }
+      await sleep(CONFIG.quietMs);
+    }
+
+    // 4. Prepare again, as the travellers' instructions say, then 5. go offline and compare.
+    for (const route of routes) {
+      try {
+        const ready = await visit(route, page => page.evaluate(offlineReady, CONFIG.offlineReadyTimeoutMs));
+        if (!ready.ok) fail(route, `not prepared for offline use after the update: ${ready.reason}`);
+      } catch (e) {
+        fail(route, `did not load after the update: ${short(e)}`);
+      }
+    }
+    await context.setOffline(true);
+    for (const route of routes) {
+      const responses = [];
+      try {
+        await visit(route, async (page, st) => {
+          const now = await page.evaluate(capture, []);
+          if (now.text !== expected.get(route)) {
+            fail(route, 'after the update steps, the offline copy still shows different content from the current build. Change the service worker (for example its cache name) with every change, and make sure the new version installs and saves the new files: cookbook/build.md, section 6');
+          }
+          for (const f of st.failed) fail(route, `after the update steps, ${new URL(f.url).pathname} is not available offline (${f.status ? `HTTP ${f.status}` : f.error})`);
+          const stale = [];
+          for (const r of responses) {
+            if (new URL(r.url()).origin !== srv.origin || r.status() >= 300) continue;
+            const name = new URL(r.url()).pathname;
+            const want = currentHash(r.url());
+            if (want === undefined) continue;
+            let body;
+            try { body = await r.body(); } catch (e) { out.incomplete.push(`${route}: the offline response for ${name} could not be read (${short(e)})`); continue; }
+            if (createHash('sha256').update(body).digest('hex') !== want) stale.push(name);
+          }
+          if (stale.length) fail(route, `after the update steps, the offline copies of ${[...new Set(stale)].join(', ')} still differ from the current build. Change the service worker (for example its cache name) with every change: cookbook/build.md, section 6`);
+        }, page => page.on('response', r => responses.push(r)));
+      } catch (e) {
+        fail(route, `offline after the update steps: ${short(e)}`);
+      }
+    }
+  } finally {
+    await context.close();
+    await srv.close();
+  }
+  return out;
+}
+
+// Writes the output directory as it was at a commit. Returns null when it wasn't tracked there.
+function exportTree(repo, sha, rel) {
+  const list = tryGit(repo, ['ls-tree', '-r', '-z', sha, '--', rel ? `${rel}/` : '.']);
+  const entries = (list ?? '').split('\0').filter(Boolean).map(l => {
+    const [meta, p] = l.split('\t');
+    const [mode, type, blob] = meta.split(' ');
+    return { mode, type, blob, p };
+  }).filter(e => e.type === 'blob' && e.mode !== '120000');
+  if (!entries.length) return null;
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'trip-check-base-')));
+  const blobs = readBlobs(repo, entries.map(e => e.blob));
+  for (const e of entries) {
+    const target = path.join(dir, rel ? e.p.slice(rel.length + 1) : e.p);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, blobs.get(e.blob) ?? Buffer.alloc(0));
+  }
+  return dir;
+}
+
+function sameTree(a, b) {
+  const files = (dir, base = dir, out = new Map()) => {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, ent.name);
+      if (ent.isDirectory()) files(abs, base, out);
+      else if (ent.isFile()) out.set(posix(path.relative(base, abs)), abs);
+    }
+    return out;
+  };
+  const fa = files(a), fb = files(b);
+  if (fa.size !== fb.size) return false;
+  for (const [rel, abs] of fa) {
+    if (!fb.has(rel) || !fs.readFileSync(abs).equals(fs.readFileSync(fb.get(rel)))) return false;
+  }
+  return true;
 }
 
 async function runLive(browser, liveBase, routes, thirdParty) {
@@ -1268,6 +1440,23 @@ async function main() {
   const confirmedIds = ledgerUsable ? arr(ledger.commitments).filter(c => c?.status === 'confirmed' && typeof c.id === 'string').map(c => c.id) : [];
   let suites = null;
   let live = null;
+  let e6 = null;
+  const siteRelInRepo = siteReal && repoReal ? posix(path.relative(repoReal, siteReal)) : null;
+  const offlineUpdate = async browser => {
+    if (!baseSha) return { result: NA, details: [opts.base === 'initial' ? 'no earlier publication to update from (--base initial)' : 'no baseline commit'] };
+    const baseDir = exportTree(repoReal, baseSha, siteRelInRepo);
+    if (!baseDir) return { result: NA, details: [`the output directory is not tracked in Git at ${baseSha.slice(0, 12)}, so the baseline build can't be served`], untracked: true };
+    try {
+      if (sameTree(baseDir, siteReal)) return { result: PASS, details: ['the output is unchanged since the baseline'] };
+      const expected = new Map(suites.root.map(r => [r.route, r.prepared?.text]));
+      if (routes.some(r => !expected.get(r))) return { result: SKIPPED, details: ['not run: the current build did not render every route (see E1 and E4)'] };
+      const r = await runUpdate(browser, baseDir, siteReal, routes, expected);
+      if (r.notApplicable) return { result: NA, details: [r.notApplicable, ...r.notes] };
+      return { result: r.details.length ? FAIL : r.incomplete.length ? SKIPPED : PASS, details: [...r.details, ...r.incomplete, ...r.notes] };
+    } finally {
+      fs.rmSync(baseDir, { recursive: true, force: true });
+    }
+  };
   const browserReason = !siteReal ? 'site directory failed the G1 guard' : !routes.length ? 'no valid route list' : null;
   if (!browserReason) {
     let browser = null;
@@ -1280,6 +1469,7 @@ async function main() {
       try {
         suites = {};
         for (const s of SUITES) suites[s.name] = await runSuite(browser, s, siteReal, routes, confirmedIds, report.third_party, terms);
+        e6 = await offlineUpdate(browser);
         if (opts.url) {
           let liveBase = null;
           try {
@@ -1309,6 +1499,8 @@ async function main() {
     const why = browserReason ?? 'the browser did not start';
     for (const id of ['E1', 'E2', 'E3', 'E4']) set(id, SKIPPED, [`not run: ${why}`]);
   }
+  if (e6) set('E6', e6.result, e6.details);
+  else set('E6', SKIPPED, [`not run: ${browserReason ?? 'the browser did not start'}`]);
   if (!opts.url) set('E5', SKIPPED, ['no --url given; deployment acceptance is not established']);
   else if (live?.error) set('E5', FAIL, [live.error]);
   else if (live) {
@@ -1395,11 +1587,12 @@ async function main() {
   if (report.third_party.length) report.agent_reviewed.push({ id: 'third-party', item: `${report.third_party.length} third-party resource failures (listed under Automated Pass): do any prevent trip use?`, status: 'awaiting review' });
   const skipped = report.privacy?.coverage.skipped_non_text ?? [];
   if (skipped.length) report.agent_reviewed.push({ id: 'binary-files', item: `${skipped.length} non-text files were not scanned: ${skipped.slice(0, 20).map(s => s.path).join(', ')}${skipped.length > 20 ? ', …' : ''}. Inspect them for private content.`, status: 'awaiting review' });
+  if (e6?.untracked) report.agent_reviewed.push({ id: 'offline-update', item: 'E6 could not serve the baseline build because the output is not tracked in Git. Confirm the service worker (for example its cache name) changed with this content, or phones that prepared the last publication keep the old copy.', status: 'awaiting review' });
   if (allowChanges.length) report.agent_reviewed.push({ id: 'privacy-allowlist', item: `privacy-fixtures.json changed against the baseline: ${allowChanges.join('; ')}. Confirm each is a synthetic value.`, status: 'awaiting review' });
   report.user_confirmation.push({ kind: 'visibility-review', text: 'Visibility review: does everything that will be public stay within the approved publication scope? (first publication or any new category needs the user\'s confirmation)', status: 'awaiting authorization review' });
 
   // Exit code reflects automated checks only.
-  const required = ['G1', 'E1', 'E2', 'E3', 'E4', 'L1', 'L2', 'L3', 'P1', 'N1', ...(opts.url ? ['E5'] : [])];
+  const required = ['G1', 'E1', 'E2', 'E3', 'E4', 'E6', 'L1', 'L2', 'L3', 'P1', 'N1', ...(opts.url ? ['E5'] : [])];
   const ok = required.every(id => report.checks[id].result === PASS || report.checks[id].result === NA);
   const exitCode = argErrors.length ? 2 : ok ? 0 : 1;
   report.exit_code = exitCode;
