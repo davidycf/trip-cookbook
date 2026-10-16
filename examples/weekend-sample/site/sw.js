@@ -1,6 +1,6 @@
 // Weekend sample service worker, following cookbook/build.md.
 const PREFIX = 'weekend-sample-';
-const CACHE = PREFIX + '2026-10-16-a';     // change on every release
+const CACHE = PREFIX + '2026-10-16-b';     // change on every release
 const FILES = ['./', 'style.css', 'app.js', 'plan.json', 'ledger.json', 'icon.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', event => {

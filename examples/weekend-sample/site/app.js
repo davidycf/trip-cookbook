@@ -102,6 +102,7 @@ function backToStay() {
     <div class="card">
       <p><strong>${esc(h.stay_name)}</strong><br>${esc(h.stay_address)}</p>
       <ol class="steps">${h.return.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+      ${factLine(fact('station-walk'))}
       <p class="net"><a href="${esc(h.directions_url)}" rel="noopener">Live directions</a> (needs a connection)</p>
     </div>`;
 }
@@ -136,7 +137,7 @@ function prepare() {
     </div>
     <h2>To do</h2>
     <div class="card">${todos.map(t => `
-      <div class="todo"><span class="due">${esc(shortDate(t.due))}</span><span>${esc(t.text)}<br><span class="owner">${esc(t.owner)}</span></span></div>`).join('')}
+      <div class="todo"><span class="due">${esc(shortDate(t.due))}</span><span>${esc(t.text)}${t.ledger ? ` <span data-ledger="${esc(t.ledger)}">${statusBadge(commitment(t.ledger))}</span>` : ''}<br><span class="owner">${esc(t.owner)}</span></span></div>`).join('')}
     </div>`;
 }
 
