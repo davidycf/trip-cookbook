@@ -1,0 +1,10 @@
+# Weekend sample: every view the travellers need.
+# Overview
+.
+# Days
+#/day/2027-06-12
+#/day/2027-06-13
+# Other views
+#/places
+#/prepare
+#/help

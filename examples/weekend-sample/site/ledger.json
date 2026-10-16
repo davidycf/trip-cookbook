@@ -1,0 +1,106 @@
+{
+  "ledger": 1,
+  "commitments": [
+    {
+      "id": "train-out",
+      "what": "Train to Port Alder",
+      "date": "2027-06-12",
+      "time": "08:40",
+      "time_zone": "Europe/London",
+      "status": "confirmed",
+      "private_ref": "bookings#train-out"
+    },
+    {
+      "id": "guesthouse",
+      "what": "Harbour guesthouse, one night, check-in from 15:00",
+      "date": "2027-06-12",
+      "end_date": "2027-06-13",
+      "time": "15:00",
+      "time_zone": "Europe/London",
+      "status": "confirmed",
+      "private_ref": "bookings#guesthouse"
+    },
+    {
+      "id": "net-loft-dinner",
+      "what": "Dinner at the Net Loft, table for two",
+      "date": "2027-06-12",
+      "time": "19:30",
+      "time_zone": "Europe/London",
+      "status": "tentative"
+    },
+    {
+      "id": "seal-boat",
+      "what": "Seal-watching boat, two seats",
+      "date": "2027-06-13",
+      "time": "10:30",
+      "time_zone": "Europe/London",
+      "status": "confirmed",
+      "private_ref": "bookings#seal-boat"
+    },
+    {
+      "id": "train-back",
+      "what": "Train home",
+      "date": "2027-06-13",
+      "time": "17:05",
+      "time_zone": "Europe/London",
+      "status": "confirmed",
+      "private_ref": "bookings#train-back"
+    }
+  ],
+  "facts": [
+    {
+      "id": "boat-green-flag",
+      "claim": "The seal boat sails only if the harbour office raises a green flag by 09:00.",
+      "status": "sourced",
+      "source": "https://example.org/port-alder/boat-trips",
+      "checked": "2026-10-16"
+    },
+    {
+      "id": "market-closed-sunday",
+      "claim": "The covered market is closed on Sundays.",
+      "status": "sourced",
+      "source": "https://example.org/port-alder/market",
+      "checked": "2026-10-16"
+    },
+    {
+      "id": "station-walk",
+      "claim": "The walk from the station to the guesthouse takes about 15 minutes.",
+      "status": "estimate",
+      "basis": "1.2 km on the town map, at a relaxed pace with a small bag each"
+    },
+    {
+      "id": "late-sunday-train",
+      "claim": "There may be a later Sunday train at about 19:10.",
+      "status": "unverified"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "one-night",
+      "decision": "Stay one night (Saturday), not two.",
+      "rejected": ["Arrive on Friday evening for a second night"],
+      "revisit_if": "Saturday trains are sold out",
+      "status": "approved",
+      "approval": {
+        "on": "2026-10-16",
+        "evidence": "Sample data: user instruction recorded in private/approvals.md#one-night"
+      }
+    },
+    {
+      "id": "timeline-layout",
+      "decision": "A single-page timeline per day, with places and preparation as separate views.",
+      "rejected": ["A map-led layout with neighbourhoods as the main navigation"],
+      "status": "approved",
+      "approval": {
+        "on": "2026-10-16",
+        "evidence": "Sample data: user chose direction A in conversation"
+      }
+    },
+    {
+      "id": "cliff-path-fallback",
+      "decision": "If the boat is cancelled, walk the cliff path on Sunday morning instead.",
+      "revisit_if": "No green flag by 09:00 on Sunday",
+      "status": "proposed"
+    }
+  ]
+}

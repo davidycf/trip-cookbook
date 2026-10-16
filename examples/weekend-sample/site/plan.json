@@ -1,0 +1,61 @@
+{
+  "title": "A weekend in Port Alder",
+  "subtitle": "Two friends, one night by the sea",
+  "sample_note": "Port Alder is fictional. Everything on this site is sample data for the Trip Cookbook.",
+  "days": [
+    {
+      "date": "2027-06-12",
+      "short": "Sat",
+      "title": "Harbour and market",
+      "summary": "Arrive mid-morning, browse the market, check in, and keep the evening near the harbour.",
+      "items": [
+        { "ledger": "train-out" },
+        { "time": "11:20", "text": "Walk to the guesthouse and leave bags at reception", "place": "guesthouse", "facts": ["station-walk"] },
+        { "time": "12:00", "text": "Lunch and a slow lap of the covered market", "place": "market", "facts": ["market-closed-sunday"] },
+        { "time": "14:00", "text": "Lighthouse lookout, or a long coffee if it rains", "place": "lighthouse", "flex": true },
+        { "ledger": "guesthouse" },
+        { "ledger": "net-loft-dinner", "place": "net-loft" }
+      ]
+    },
+    {
+      "date": "2027-06-13",
+      "short": "Sun",
+      "title": "Seals, then home",
+      "summary": "One fixed morning on the water, a free afternoon, and the train home.",
+      "items": [
+        { "time": "09:00", "text": "Check the harbour office flag before breakfast", "place": "harbour-office", "facts": ["boat-green-flag"] },
+        { "ledger": "seal-boat", "place": "harbour-office" },
+        { "time": "12:30", "text": "Fish lunch on the quay; the market is closed today", "place": "quay", "facts": ["market-closed-sunday"] },
+        { "time": "14:00", "text": "Free afternoon: beach, bookshop or a nap", "flex": true },
+        { "time": "16:30", "text": "Collect bags and walk to the station", "place": "guesthouse" },
+        { "ledger": "train-back", "facts": ["late-sunday-train"] }
+      ]
+    }
+  ],
+  "places": [
+    { "id": "guesthouse", "area": "Harbour", "name": "Harbour guesthouse", "kind": "Stay", "note": "Bags can be left at reception before check-in." },
+    { "id": "harbour-office", "area": "Harbour", "name": "Harbour office", "kind": "Boat trips", "note": "The flag mast is visible from the quay." },
+    { "id": "quay", "area": "Harbour", "name": "The quay", "kind": "Food", "note": "Several fish stalls; most open from noon." },
+    { "id": "net-loft", "area": "Harbour", "name": "The Net Loft", "kind": "Dinner", "note": "Upstairs room; ask for the window side." },
+    { "id": "market", "area": "Old town", "name": "Covered market", "kind": "Food and shopping", "note": "Bakery stalls sell out by early afternoon." },
+    { "id": "bookshop", "area": "Old town", "name": "Second-hand bookshop", "kind": "Browsing", "note": "Small; a good rainy-hour stop." },
+    { "id": "lighthouse", "area": "Headland", "name": "Lighthouse lookout", "kind": "View", "note": "Exposed; bring a layer." }
+  ],
+  "todos": [
+    { "id": "book-train", "text": "Book train seats together", "due": "2027-05-12", "owner": "Either" },
+    { "id": "dinner-confirm", "text": "Confirm the Net Loft table (still tentative)", "due": "2027-06-05", "owner": "Sam" },
+    { "id": "late-train-check", "text": "Check whether a later Sunday train runs", "due": "2027-06-05", "owner": "Alex" },
+    { "id": "prepare-offline", "text": "Prepare the site for offline use on both phones", "due": "2027-06-11", "owner": "Both" }
+  ],
+  "help": {
+    "stay_name": "Harbour guesthouse",
+    "stay_address": "4 Quay Row, Port Alder (sample address)",
+    "return": [
+      "From the station: leave by the sea-side exit and follow Station Road downhill.",
+      "At the clock tower, turn left onto the quay; Quay Row is the third lane on the right.",
+      "About 15 minutes on foot (estimate)."
+    ],
+    "directions_url": "https://example.org/port-alder/map",
+    "emergency": "Emergency services: call 112 (sample; check the real number for your destination)."
+  }
+}

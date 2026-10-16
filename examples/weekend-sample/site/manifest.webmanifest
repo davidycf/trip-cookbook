@@ -1,0 +1,10 @@
+{
+  "name": "A weekend in Port Alder",
+  "short_name": "Port Alder",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5efe3",
+  "theme_color": "#0f6b66",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
