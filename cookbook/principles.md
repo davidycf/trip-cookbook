@@ -215,13 +215,13 @@ Each principle gives a rule, why it matters, two ways to implement it and one co
 
 ### 15. Make on-trip essentials a tap away: today, hotel return and emergency information
 
-**Rule.** During the trip, three things are one tap from anywhere: today's plan, the way back to tonight's hotel, and emergency information. All three work offline.
+**Rule.** During the trip, three things are one tap from anywhere: today's plan, the way back to tonight's hotel, and emergency information. All three work offline. Anything extra that needs a connection, such as live transit directions, is labelled as needing one.
 
 **Why it matters.** In the moment, travellers don't need the planning views. They need where to be next, how to get back, and what to do if something goes wrong.
 
 **Two ways to implement it.**
 
-1. During the trip, open the home page on today, and end each day page with a "back to hotel" button that opens transit directions to the hotel's public address.
+1. During the trip, open the home page on today. End each day page with tonight's hotel: its name, its public address in the local language, and short return instructions saved with the page (nearest station and exit, line, rough walking time). Add a link to live transit directions, labelled as needing a connection.
 2. Add an offline emergency card: local emergency numbers, each hotel's name and public address in the local language, and where to find insurance and embassy contacts.
 
-**Counter-example.** The hotel's address exists only in a booking email, which won't load in a taxi with no signal.
+**Counter-example.** The way back is a single "back to hotel" button that opens an online map, and the address exists only in a booking email. In a taxi with no signal, the traveller has neither.
