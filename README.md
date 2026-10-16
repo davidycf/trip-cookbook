@@ -2,7 +2,7 @@
 
 A cookbook for coding agents: give it to your agent and, in an afternoon, end up with your own trip website. The site works on a phone, keeps working offline, and is deployed where you choose.
 
-> **Status: V0.1.0, the first release.** [CHANGELOG.md](CHANGELOG.md) lists what's included and, for later releases, what changed.
+> **Status: V0.1.1.** [CHANGELOG.md](CHANGELOG.md) lists what each release includes and what changed.
 
 ## What this is, and isn't
 

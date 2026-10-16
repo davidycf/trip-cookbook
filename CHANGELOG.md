@@ -2,7 +2,7 @@
 
 Each release explains what changed and whether it applies to sites built with an earlier version. Agents use this file during an upgrade (see `cookbook/upgrade.md`).
 
-## V0.1.1 · unreleased
+## V0.1.1 · 2026-10-16
 
 Project orientation: a fresh session, after a gap and with any agent, finds the current shape of the trip in a few targeted reads. **Applies to existing sites:** N1 is a new required check, and it fails until `NOTES.md` has its opening line, sections and pointer table, so one notes edit is needed (`cookbook/upgrade.md`, "From V0.1.0"). E6 is also new and required: a site whose content changed since its last publication without a new cache name fails it. Nothing in the ledger or the publication rules changes.
 
