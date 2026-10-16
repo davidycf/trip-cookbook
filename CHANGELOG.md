@@ -4,11 +4,13 @@ Each release explains what changed and whether it applies to sites built with an
 
 ## V0.1.1 · unreleased
 
-Project orientation: a fresh session, after a gap and with any agent, finds the current shape of the trip in a few targeted reads. **Applies to existing sites:** N1 is a new required check, and it fails until `NOTES.md` has its sections and pointer table, so one notes edit is needed (`cookbook/upgrade.md`, "From V0.1.0"). Nothing in the ledger, the site or the publication rules changes.
+Project orientation: a fresh session, after a gap and with any agent, finds the current shape of the trip in a few targeted reads. **Applies to existing sites:** N1 is a new required check, and it fails until `NOTES.md` has its opening line, sections and pointer table, so one notes edit is needed (`cookbook/upgrade.md`, "From V0.1.0"). E6 is also new and required: a site whose content changed since its last publication without a new cache name fails it. Nothing in the ledger or the publication rules changes.
 
 - `NOTES.md` is required from the first build, as the project's index and short log: six required sections, a pointer table under `## Where to look`, `ledger:<id>` references, and a bounded `## Recent changes` log. Notes guide retrieval; the site and the ledger stay the source of truth (`cookbook/build.md`, section 1).
 - `AGENTS.md`: a procedure for resuming a project. Setup no longer creates agent-specific instruction files such as `CLAUDE.md`, and project state never goes in `AGENTS.md`.
 - Checker: N1 checks the notes' structure, pointers and ledger references, and reports SKIPPED when something they refer to can't be read. A new informational block, "Changed since the last notes edit", lists project files changed since `NOTES.md` was last committed, including uncommitted changes. It never affects the exit code.
+- Checker: E6 serves the baseline build from Git, prepares a browser offline with it, then switches to the current build. It fails when a route still shows old content and no service-worker update is found, which is what happens when content changes but the cache name doesn't. The cold-start test found an agent making exactly this change.
+- `NOTES.md` opens with a line pointing to `AGENTS.md`, checked by N1. In the cold-start test, agents opened `NOTES.md` first and never read `AGENTS.md`.
 - Rubric: R11, notes guide correctly.
 - The weekend sample's `NOTES.md` is restructured as the worked example.
 - README: what to tell your agent when you come back to your trip.

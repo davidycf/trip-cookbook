@@ -9,6 +9,7 @@
 // errors. A zero exit code is never permission to publish.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
 import { execFileSync } from 'node:child_process';
@@ -35,7 +36,7 @@ const SUITES = [
   { name: 'subpath', prefix: '/site/' },
 ];
 const PASS = 'PASS', FAIL = 'FAIL', SKIPPED = 'SKIPPED', NA = 'NOT APPLICABLE';
-const CHECK_IDS = ['G1', 'E1', 'E2', 'E3', 'E4', 'E5', 'L1', 'L2', 'L3', 'P1', 'N1'];
+const CHECK_IDS = ['G1', 'E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'L1', 'L2', 'L3', 'P1', 'N1'];
 const CHECK_TITLES = {
   G1: 'Inputs, route list, Git context and baseline',
   E1: 'Routes load at the local root',
@@ -43,6 +44,7 @@ const CHECK_TITLES = {
   E3: 'Routes load without overflow under /site/',
   E4: 'Offline after preparation, both prefixes',
   E5: 'Live routes load without overflow',
+  E6: 'Offline copies of the baseline update',
   L1: 'Ledger schema and field rules',
   L2: 'Confirmed commitments annotated on the page',
   L3: 'Sourced facts have source and check date',
@@ -254,11 +256,13 @@ function commentStart(s) {
   }
 }
 
-// Splits NOTES.md into level-2 sections. Lines inside fenced code blocks never count as
-// headings or table rows, but they stay in the section's text. HTML comments aren't
-// rendered, so they count for nothing at all.
+// Splits NOTES.md into level-2 sections, plus the visible text before the first one
+// (sections.preamble). Lines inside fenced code blocks never count as headings or table
+// rows, but they stay in the section's text. HTML comments aren't rendered, so they count
+// for nothing at all.
 function parseNotes(text) {
   const sections = [];
+  const preamble = [];
   let fence = null;
   let comment = false;
   let current = null;
@@ -300,8 +304,10 @@ function parseNotes(text) {
       return;
     }
     if (/^ {0,3}#(?:[ \t]|$)/.test(line)) { current = null; return; }
+    if (!current && !sections.length) { preamble.push(line); return; }
     current?.lines.push({ text: line, code: false });
   });
+  sections.preamble = preamble;
   return sections;
 }
 
@@ -366,6 +372,7 @@ function checkNotes(root, ledgerIds) {
   const skips = [];
 
   const sections = parseNotes(text);
+  if (!sections.preamble.some(l => l.includes('AGENTS.md'))) fails.push('NOTES.md must open, before its first "##" heading, with a line pointing to AGENTS.md for the working rules');
   const norm = s => s.toLowerCase().replace(/\s+/g, ' ');
   const found = new Map(NOTES_HEADINGS.map(h => [h, sections.filter(s => norm(s.title) === norm(h))]));
   let last = null;
@@ -496,8 +503,11 @@ const TYPES = {
 // Plain static-file and directory-index resolution under one prefix. No SPA fallback,
 // no clean-URL rewriting, no caching (offline success must come from the site's own storage).
 function startServer(siteReal, prefix) {
+  // siteReal may be { dir }, so a test can switch what is served under the same origin.
+  const rootOf = typeof siteReal === 'string' ? () => siteReal : () => siteReal.dir;
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
+      const siteReal = rootOf();
       const send = (code, body = '', headers = {}) => {
         res.writeHead(code, { 'Cache-Control': 'no-store', ...headers });
         res.end(req.method === 'HEAD' ? '' : body);
@@ -746,6 +756,100 @@ async function runSuite(browser, suite, siteReal, routes, confirmedIds, thirdPar
     await srv.close();
   }
   return results;
+}
+
+// E6. A browser prepares the baseline build for offline use; then the server switches to
+// the current build. Every route must then show the current content, or the browser must
+// find a new service worker (an update the traveller can take). Otherwise phones that
+// prepared the baseline keep the old copy and are never offered the new one.
+async function runUpdate(browser, baseDir, siteReal, routes, expected) {
+  const served = { dir: baseDir };
+  const srv = await startServer(served, '/');
+  const context = await browser.newContext({ viewport: CONFIG.viewport });
+  let workers = 0;
+  context.on('serviceworker', () => { workers++; });
+  const out = { notApplicable: null, details: [] };
+  try {
+    for (const route of routes) {
+      const page = await context.newPage();
+      const st = instrument(page, srv.origin);
+      try {
+        await page.goto(routeUrl(srv.base, route), { waitUntil: 'load', timeout: CONFIG.readyTimeoutMs });
+        await waitReady(page, st);
+        const ready = await page.evaluate(offlineReady, CONFIG.offlineReadyTimeoutMs);
+        if (!ready.ok) { out.notApplicable = `the baseline build does not prepare ${route} for offline use (${ready.reason})`; return out; }
+      } catch (e) {
+        out.notApplicable = `the baseline build did not load ${route}: ${short(e)}`;
+        return out;
+      } finally {
+        await page.close();
+      }
+    }
+    served.dir = siteReal;
+    const before = workers;
+    for (const route of routes) {
+      const page = await context.newPage();
+      const st = instrument(page, srv.origin);
+      try {
+        await page.goto(routeUrl(srv.base, route), { waitUntil: 'load', timeout: CONFIG.readyTimeoutMs });
+        await waitReady(page, st);
+        await page.evaluate(async () => {
+          const reg = await navigator.serviceWorker?.getRegistration();
+          await reg?.update().catch(() => {});
+        });
+        await sleep(CONFIG.quietMs);
+        if (workers > before) continue;
+        const now = await page.evaluate(capture, []);
+        if (now.text !== expected.get(route)) {
+          out.details.push({ route, problem: 'a browser that prepared the baseline still shows its old content, and no service-worker update was found. Change the service worker (for example its cache name) with every content change: cookbook/build.md, section 6' });
+        }
+      } catch (e) {
+        out.details.push({ route, problem: `did not load after the switch to the current build: ${short(e)}` });
+      } finally {
+        await page.close();
+      }
+    }
+  } finally {
+    await context.close();
+    await srv.close();
+  }
+  return out;
+}
+
+// Writes the output directory as it was at a commit. Returns null when it wasn't tracked there.
+function exportTree(repo, sha, rel) {
+  const list = tryGit(repo, ['ls-tree', '-r', '-z', sha, '--', rel ? `${rel}/` : '.']);
+  const entries = (list ?? '').split('\0').filter(Boolean).map(l => {
+    const [meta, p] = l.split('\t');
+    const [mode, type, blob] = meta.split(' ');
+    return { mode, type, blob, p };
+  }).filter(e => e.type === 'blob' && e.mode !== '120000');
+  if (!entries.length) return null;
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'trip-check-base-')));
+  const blobs = readBlobs(repo, entries.map(e => e.blob));
+  for (const e of entries) {
+    const target = path.join(dir, rel ? e.p.slice(rel.length + 1) : e.p);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, blobs.get(e.blob) ?? Buffer.alloc(0));
+  }
+  return dir;
+}
+
+function sameTree(a, b) {
+  const files = (dir, base = dir, out = new Map()) => {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, ent.name);
+      if (ent.isDirectory()) files(abs, base, out);
+      else if (ent.isFile()) out.set(posix(path.relative(base, abs)), abs);
+    }
+    return out;
+  };
+  const fa = files(a), fb = files(b);
+  if (fa.size !== fb.size) return false;
+  for (const [rel, abs] of fa) {
+    if (!fb.has(rel) || !fs.readFileSync(abs).equals(fs.readFileSync(fb.get(rel)))) return false;
+  }
+  return true;
 }
 
 async function runLive(browser, liveBase, routes, thirdParty) {
@@ -1268,6 +1372,23 @@ async function main() {
   const confirmedIds = ledgerUsable ? arr(ledger.commitments).filter(c => c?.status === 'confirmed' && typeof c.id === 'string').map(c => c.id) : [];
   let suites = null;
   let live = null;
+  let e6 = null;
+  const siteRelInRepo = siteReal && repoReal ? posix(path.relative(repoReal, siteReal)) : null;
+  const offlineUpdate = async browser => {
+    if (!baseSha) return { result: NA, details: [opts.base === 'initial' ? 'no earlier publication to update from (--base initial)' : 'no baseline commit'] };
+    const baseDir = exportTree(repoReal, baseSha, siteRelInRepo);
+    if (!baseDir) return { result: NA, details: [`the output directory is not tracked in Git at ${baseSha.slice(0, 12)}, so the baseline build can't be served`], untracked: true };
+    try {
+      if (sameTree(baseDir, siteReal)) return { result: PASS, details: ['the output is unchanged since the baseline'] };
+      const expected = new Map(suites.root.map(r => [r.route, r.prepared?.text]));
+      if (routes.some(r => !expected.get(r))) return { result: SKIPPED, details: ['not run: the current build did not render every route (see E1 and E4)'] };
+      const r = await runUpdate(browser, baseDir, siteReal, routes, expected);
+      if (r.notApplicable) return { result: NA, details: [r.notApplicable] };
+      return { result: r.details.length ? FAIL : PASS, details: r.details };
+    } finally {
+      fs.rmSync(baseDir, { recursive: true, force: true });
+    }
+  };
   const browserReason = !siteReal ? 'site directory failed the G1 guard' : !routes.length ? 'no valid route list' : null;
   if (!browserReason) {
     let browser = null;
@@ -1280,6 +1401,7 @@ async function main() {
       try {
         suites = {};
         for (const s of SUITES) suites[s.name] = await runSuite(browser, s, siteReal, routes, confirmedIds, report.third_party, terms);
+        e6 = await offlineUpdate(browser);
         if (opts.url) {
           let liveBase = null;
           try {
@@ -1309,6 +1431,8 @@ async function main() {
     const why = browserReason ?? 'the browser did not start';
     for (const id of ['E1', 'E2', 'E3', 'E4']) set(id, SKIPPED, [`not run: ${why}`]);
   }
+  if (e6) set('E6', e6.result, e6.details);
+  else set('E6', SKIPPED, [`not run: ${browserReason ?? 'the browser did not start'}`]);
   if (!opts.url) set('E5', SKIPPED, ['no --url given; deployment acceptance is not established']);
   else if (live?.error) set('E5', FAIL, [live.error]);
   else if (live) {
@@ -1395,11 +1519,12 @@ async function main() {
   if (report.third_party.length) report.agent_reviewed.push({ id: 'third-party', item: `${report.third_party.length} third-party resource failures (listed under Automated Pass): do any prevent trip use?`, status: 'awaiting review' });
   const skipped = report.privacy?.coverage.skipped_non_text ?? [];
   if (skipped.length) report.agent_reviewed.push({ id: 'binary-files', item: `${skipped.length} non-text files were not scanned: ${skipped.slice(0, 20).map(s => s.path).join(', ')}${skipped.length > 20 ? ', …' : ''}. Inspect them for private content.`, status: 'awaiting review' });
+  if (e6?.untracked) report.agent_reviewed.push({ id: 'offline-update', item: 'E6 could not serve the baseline build because the output is not tracked in Git. Confirm the service worker (for example its cache name) changed with this content, or phones that prepared the last publication keep the old copy.', status: 'awaiting review' });
   if (allowChanges.length) report.agent_reviewed.push({ id: 'privacy-allowlist', item: `privacy-fixtures.json changed against the baseline: ${allowChanges.join('; ')}. Confirm each is a synthetic value.`, status: 'awaiting review' });
   report.user_confirmation.push({ kind: 'visibility-review', text: 'Visibility review: does everything that will be public stay within the approved publication scope? (first publication or any new category needs the user\'s confirmation)', status: 'awaiting authorization review' });
 
   // Exit code reflects automated checks only.
-  const required = ['G1', 'E1', 'E2', 'E3', 'E4', 'L1', 'L2', 'L3', 'P1', 'N1', ...(opts.url ? ['E5'] : [])];
+  const required = ['G1', 'E1', 'E2', 'E3', 'E4', 'E6', 'L1', 'L2', 'L3', 'P1', 'N1', ...(opts.url ? ['E5'] : [])];
   const ok = required.every(id => report.checks[id].result === PASS || report.checks[id].result === NA);
   const exitCode = argErrors.length ? 2 : ok ? 0 : 1;
   report.exit_code = exitCode;

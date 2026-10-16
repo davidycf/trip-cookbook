@@ -152,6 +152,8 @@ self.addEventListener('fetch', e => {
 // A minimal NOTES.md that passes N1 against compliantFiles().
 export const notesFile = ({ where = '| Overview | `route:.`, `ledger.json#commitments` |', context = '', open = '', recent = '', visibility = 'Test fixture: nothing is published.', build = '- No build; `site/` is the output.' } = {}) => `# Notes
 
+Working rules for this project: AGENTS.md.
+
 ## Where to look
 
 | Topic | Location |

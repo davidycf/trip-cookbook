@@ -11,12 +11,20 @@ Write `NOTES.md` from the first build, and keep it accurate. It's the project's 
 
 ### Structure
 
+Open the file, before its first level-2 heading, with a line pointing to the working rules:
+
+```markdown
+Working rules for this project: AGENTS.md. Read it before changing anything.
+```
+
+Agents coming back to a project often open `NOTES.md` first, and some never load `AGENTS.md` on their own. This line is how they find the rules. N1 checks that the text before the first `##` heading names `AGENTS.md`.
+
 These level-2 headings are required, each once, in this order. You can add other level-2 headings anywhere.
 
 | Heading | Holds | Must not hold |
 | --- | --- | --- |
 | `## Where to look` | A pointer table: topic → location of the current content. Also one-line notes on important relationships, such as "activities link to places via `place`" | Copies of the content it points to |
-| `## Context` | Requirements, the rationale behind the design and plan, and implementation traps that aren't apparent from the site. Cite decisions as `ledger:<id>`; don't restate them | A second decision register; itinerary details |
+| `## Context` | Requirements, the rationale behind the design and plan, and implementation traps that aren't apparent from the site, such as "every change to a cached file needs a new cache name in `sw.js`". Cite decisions as `ledger:<id>`; don't restate them | A second decision register; itinerary details |
 | `## Open` | Unfinished discussions, implementation work and blockers. Travel to-dos appear as a pointer to the site view that lists them | Copies of the site's to-do list |
 | `## Recent changes` | A short, bounded log (see below) | A full history; restatements of changed content |
 | `## Visibility` | The approved publication scope (`privacy.md`) | Private information |
@@ -243,7 +251,7 @@ Rules that matter:
 - **Let updates wait.** Never call `skipWaiting()` unconditionally. A new release waits until every page of the old release is closed, so an open page never reads files from a release it wasn't built with. When the traveller taps "update", the page asks the waiting worker to take over and reloads as soon as it does.
 - **Delete only your own caches.** Give every cache name a prefix unique to this site, and on activate delete only this site's old caches. Several sites can share one origin (for example project sites under `https://<user>.github.io`), and they share its cache storage. Prefix `localStorage` keys for the same reason.
 - **Cache the page under the key it's requested by.** Navigations to `#/day/3` request `./`, which is why `./` is in the list. With path routes, list each route's URL relative to `sw.js`, for example `day/3/`.
-- **Change the cache name on every release.** The new release then installs into its own cache, and the old one stays intact until the old pages are gone.
+- **Change the cache name on every release,** including a content-only change such as a new time in a data file. The new release then installs into its own cache, and the old one stays intact until the old pages are gone. A cache-first service worker whose script doesn't change is never updated: phones that prepared the site keep the old copy and are never offered the new one. E6 tests this against the baseline. Record it as a trap under `## Context` in `NOTES.md`, so the next session knows it too.
 - **Never cache anything from `private/`.** It shouldn't be in the output at all.
 
 For a site that changes often, network-first with a short timeout and a cache fallback works too. The same rules apply: save each release's files as one set under a prefixed cache name, and let updates wait.
@@ -288,6 +296,7 @@ node evals/check.mjs --site <output-dir> --base <initial|published|git-ref> \
 - `--site` is the built output directory.
 - `--base` is required. Use `initial` until the user accepts the first publication, and `published` after that (see section 8).
 - `--url` adds the live check (E5) after deployment. Without it, deployment acceptance isn't established.
+- With `--base published` (or another ref), E6 serves the baseline build from Git, prepares a browser offline with it, then switches to the current build. Every route must then show the current content, or the browser must find a new service worker to offer as an update. If the output directory isn't committed, E6 can't serve the baseline: it reports NOT APPLICABLE, and the report asks you to confirm the cache name changed.
 - `--fetch-sources` also checks that sourced URLs are reachable now.
 
 The checker serves the output itself at `/` and `/site/`, in fresh browsers at 390px. It visits every listed route, tests offline after preparation, validates the ledger, compares it with the baseline, scans for private data, and checks `NOTES.md`'s structure and pointers. It also lists the project files changed since `NOTES.md` was last committed, as information for rubric item R11. It writes `.trip-check/report.md` and `.trip-check/report.json`.
