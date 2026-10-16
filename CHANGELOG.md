@@ -8,3 +8,4 @@ In progress.
 
 - Added README, AGENTS.md, license, `.gitignore` and the folder skeleton.
 - Added `cookbook/principles.md` (15 principles) and the reference design guide `reference/japan-trip.md`, with nine approved, de-identified screenshots.
+- Added the interview, research, design, build, privacy and upgrade guides, including worked deployment examples for GitHub Pages, Cloudflare Pages and Netlify.
