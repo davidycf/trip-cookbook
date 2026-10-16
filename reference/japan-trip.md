@@ -4,7 +4,7 @@ This is a design guide to one real trip site: a multi-city family trip in Japan 
 
 The site predates this Cookbook, so it doesn't use `ledger.json` or the checker. Where it solved a problem the Cookbook now addresses, this guide says so.
 
-**About the screenshots.** Each screenshot below is marked *pending approval* until it has been reviewed and added; until then the caption describes it. They were taken at 390px wide from a local copy of the site, with personal details replaced in the rendered page: hotel names appear as 〔酒店〕, dates as •/•, family roles as 大人 (adult) and 孩子 (child), and the home city as 〔出发地〕. The interface is in Chinese with Japanese place names, because that's what the family reads.
+**About the screenshots.** They were taken at 390px wide from a local copy of the site, with personal details replaced in the rendered page: hotel names appear as 〔酒店〕, dates as •/•, family roles as 大人 (adult) and 孩子 (child), and the home city as 〔出发地〕. The interface is in Chinese with Japanese place names, because that's what the family reads.
 
 ## The brief, in short
 
@@ -24,7 +24,7 @@ The whole site uses one metaphor: the trip is a train line and each day is a sta
 
 **Takeaway:** pick one metaphor that means something to your travellers, and let it carry navigation, not just decoration. A road trip might use mile markers, a hiking trip trail blazes.
 
-> **Screenshot pending approval** (`img/01-overview.png`): Overview: header, countdown, next to-dos and the route line in city colours.
+![Overview: header, countdown, next to-dos and the route line in city colours](img/01-overview.png)
 
 *Overview. The route line shows the cities in their colours with nights per stop. "接下来" (next up) lists the nearest to-dos by deadline. The badge "正在保存离线版本" means the offline copy is being saved.*
 
@@ -41,7 +41,7 @@ Six sections, reachable from a fixed bottom bar:
 
 Every day has a permanent address (`#d1` to `#d15`) that never changes when activities move.
 
-> **Screenshot pending approval** (`img/02-itinerary.png`): Itinerary list grouped by city, one line per day.
+![Itinerary list grouped by city, one line per day](img/02-itinerary.png)
 
 *Itinerary list. Each day is a station on its city's line, with one title line. Fixed travel days and flexible activity days share the same list.*
 
@@ -57,7 +57,7 @@ Cards can't assume their date, so a card never says "this is your first day". We
 
 This is principles [6](../cookbook/principles.md#6-keep-fixed-items-separate-from-adjustable-activities), [8](../cookbook/principles.md#8-keep-the-recommended-plan-separate-from-the-users-own-choices) and [9](../cookbook/principles.md#9-one-main-activity-per-day-make-the-load-visible) working together.
 
-> **Screenshot pending approval** (`img/03-day-top.png`): Top of a day page: station sign, title, context note and plan controls.
+![Top of a day page: station sign, title, context note and plan controls](img/03-day-top.png)
 
 *Day page. The station sign links to the neighbouring days. Below the title, a context note ("still jet-lagged: main item in the morning, rest at the hotel after lunch if needed") applies to the date, whatever card is on it. The buttons are 推荐方案 (recommended plan), 卡片详情 (card details) and 换活动 (swap activity).*
 
@@ -79,11 +79,11 @@ Planning and the trip itself use the same page; it doesn't switch modes. From to
 
 In the route, **fixed steps carry a filled marker and the label 固定 (fixed)**, card steps are filled without the label, and optional branch steps appear hollow, labelled 支线 (branch).
 
-> **Screenshot pending approval** (`img/04-day-route.png`): Route for a moving day, with fixed items labelled.
+![Route for a moving day, with fixed items labelled](img/04-day-route.png)
 
 *Today's route on a moving day. The train, the luggage drop at the hotel and lunch are fixed (固定); lunch names a fallback if the queue is too long. The afternoon comes from the card. Train times carry a note that next year's timetable isn't published yet, with a link to the appendix.*
 
-> **Screenshot pending approval** (`img/05-swap.png`): Swap panel with recommended alternatives.
+![Swap panel with recommended alternatives](img/05-swap.png)
 
 *Swap panel. It says up front that only this day changes and that fixed items stay ("只改这一天；日期固定的事不动"). Recommended alternatives come first, then the rest of the library behind "更多活动". Options that can't work on this date are disabled with the reason shown.*
 
@@ -101,7 +101,7 @@ Activities live in a **card library**, separate from the itinerary ([principle 1
 
 Restaurants, shops and sights live in neighbourhood lists, each place stored once. Day pages link to the neighbourhoods on their route, and each neighbourhood page shows which days pass nearby.
 
-> **Screenshot pending approval** (`img/06-cards.png`): Activity card library with search, filters and scheduling status.
+![Activity card library with search, filters and scheduling status](img/06-cards.png)
 
 *Activity library. Each card has a station-sign label for its area, a summary, length, travel distance and status: 已安排 (scheduled, with the day) or 未安排 (not scheduled).*
 
@@ -109,7 +109,7 @@ Restaurants, shops and sights live in neighbourhood lists, each place stored onc
 
 One sought-after venue was sold by lottery, with the result due weeks before the trip. Instead of rewriting the plan by hand after the result, the site has a scenario page: pick the lottery outcome, preview what changes across the four affected days, and apply in one step, with undo. Fixed items, such as sending luggage ahead on one of those mornings, never move. The venue stays marked as a simulated plan until the traveller registers an actual ticket, and the page never claims a ticket exists.
 
-> **Screenshot pending approval** (`img/07-museum.png`): Scenario preset: lottery outcome, preview of affected days.
+![Scenario preset: lottery outcome, preview of affected days](img/07-museum.png)
 
 *Scenario page. The current state is "not won; any museum day is simulated". The preview shows each affected day and whether it changes; one day carries a 待核对 (to verify) label because the venue's opening calendar for that year isn't published.*
 
@@ -119,7 +119,7 @@ To-dos carry a deadline or a "from" date, and the home page shows the next ones 
 
 Checklist state is stored on the device by stable to-do ID. An earlier version stored it by list position, which meant to-dos could never be inserted or reordered without moving checkmarks onto the wrong items. The site moved to stable IDs, with a one-time notice asking the traveller to recheck ([principle 12](../cookbook/principles.md#12-stable-links-and-ids-changes-can-be-undone-easily)).
 
-> **Screenshot pending approval** (`img/08-todo.png`): Appendix: to-dos awaiting confirmation, with deadlines.
+![Appendix: to-dos awaiting confirmation, with deadlines](img/08-todo.png)
 
 *Appendix index. Section chips across the top stay pinned and follow the reading position. "尚待确认" (awaiting confirmation) lists open to-dos, each with a deadline and a link to details.*
 
@@ -130,7 +130,7 @@ Checklist state is stored on the device by stable to-do ID. An earlier version s
 - An emergency card in the appendix lists emergency numbers and each hotel's public address in Japanese, to show a taxi driver.
 - Items still unconfirmed sit in a highlighted 待确认 (to confirm) block on the day they affect.
 
-> **Screenshot pending approval** (`img/09-stay.png`): Stay section with the back-to-hotel directions link, an item to confirm, and nearby lists.
+![Stay section with the back-to-hotel directions link, an item to confirm, and nearby lists](img/09-stay.png)
 
 *End of a day page. Tonight's hotel with the back-to-hotel directions link (online only), a 待确认 note that depends on a calendar not yet published, and nearby neighbourhood lists with counts.*
 

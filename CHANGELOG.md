@@ -7,4 +7,4 @@ Each release explains what changed and whether it applies to sites built with an
 In progress.
 
 - Added README, AGENTS.md, license, `.gitignore` and the folder skeleton.
-- Added `cookbook/principles.md` (15 principles) and the reference design guide `reference/japan-trip.md`.
+- Added `cookbook/principles.md` (15 principles) and the reference design guide `reference/japan-trip.md`, with nine approved, de-identified screenshots.
