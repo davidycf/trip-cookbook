@@ -131,14 +131,17 @@ render();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 `;
 
-export const swSource = (files = ['./', 'app.js'], { claim = true } = {}) => `const CACHE = 'test-v1';
+// The service worker pattern from cookbook/build.md: prefixed caches, no unconditional skipWaiting.
+export const swSource = (files = ['./', 'app.js'], { claim = true } = {}) => `const PREFIX = 'test-trip-';
+const CACHE = PREFIX + 'v1';
 const FILES = ${JSON.stringify(files)};
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)));
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))${claim ? '.then(() => self.clients.claim())' : ''});
+  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k.startsWith(PREFIX) && k !== CACHE).map(k => caches.delete(k))))${claim ? '.then(() => self.clients.claim())' : ''});
 });
+self.addEventListener('message', e => { if (e.data === 'activate-update') self.skipWaiting(); });
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
