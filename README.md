@@ -2,7 +2,7 @@
 
 A cookbook for coding agents: give it to your agent and, in an afternoon, end up with your own trip website. The site works on a phone, keeps working offline, and is deployed where you choose.
 
-> **Status: V0.1 is under construction.** The guides, checker and sample are being added one pull request at a time. The opener below works once V0.1 is released; [CHANGELOG.md](CHANGELOG.md) shows progress.
+> **Status: V0.1.0, the first release.** [CHANGELOG.md](CHANGELOG.md) lists what's included and, for later releases, what changed.
 
 ## What this is, and isn't
 
