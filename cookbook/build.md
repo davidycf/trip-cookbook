@@ -146,12 +146,13 @@ self.addEventListener('fetch', event => {
 // in the page
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').then(reg => {
+    if (!reg) return;   // service workers can be blocked (private windows, some browsers, the live check)
     const offer = () => {
       if (reg.waiting && navigator.serviceWorker.controller) showUpdateButton(() => reg.waiting.postMessage('activate-update'));
     };
     offer();
     reg.addEventListener('updatefound', () => reg.installing?.addEventListener('statechange', offer));
-  });
+  }).catch(() => {});   // the site still works online without its offline copy
   // A takeover by a new release reloads every open page, so none runs on another release's files.
   // The first worker taking control (clients.claim on first install) does not reload.
   let controlled = !!navigator.serviceWorker.controller;
@@ -163,6 +164,8 @@ if ('serviceWorker' in navigator) {
 ```
 
 `showUpdateButton` is yours to write: a small "New version available: update" button is enough.
+
+Registration can fail or give no registration where service workers are blocked: private windows, some browsers, and the checker's live check (E5), which blocks them. The page must keep working online in that case, so guard it as above; an unhandled rejection or a `null` registration is an uncaught exception that fails E1 and E5.
 
 Rules that matter:
 
@@ -240,6 +243,7 @@ The checker compares the current ledger with a baseline to list protected change
 
 - **Before publishing an update:** run with `--base published`. You can compare against other refs while working, but the report flags a `--base` that differs from the `published` tag.
 - If the tag is missing or doesn't match what's live, resolve the baseline with the user before publishing.
+- **With automatic deploys, every push to the deploy branch is a publication,** even one that changes only notes. Once a publication is accepted, either keep later commits local until the next real change, or treat the push as a new publication: check it, get it accepted, and move the tag. The tag should always point at what's live.
 
 ## 9. Choosing a host
 
@@ -252,6 +256,8 @@ Any static host with HTTPS works. Propose one based on the accounts the user alr
 | Netlify | Yes | `https://<name>.netlify.app/` | Git integration or CLI deploy |
 
 Other static hosts should work too; the deployment is then Agent Reviewed against the pitfalls below. Host plans and features change, so check the host's current documentation when setting up.
+
+You can create the repository yourself once the user agrees to its name and visibility (for example `gh repo create <name> --private --source . --push`); don't make them do it by hand. Connecting a host to the repository usually needs the user's own sign-in: give them short, exact steps, say which permissions to grant (access to that one repository only), and ask for the resulting site address.
 
 ## 10. Host pitfalls
 
@@ -339,4 +345,5 @@ Publish only when all of these hold:
 4. The visibility review is done (`privacy.md`), and covers this content.
 5. The deployment matches the checked output: same build, same path.
 6. After deploying, the checker passes with `--url` against the live site.
-7. Once the user accepts the publication, move the `published` tag to the deployed commit.
+7. Hand the user the completed three-column report for this publication **before** asking them to accept it.
+8. Once the user accepts the publication, move the `published` tag to the deployed commit.

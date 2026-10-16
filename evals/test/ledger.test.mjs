@@ -105,3 +105,21 @@ test('E5 passes against a reachable live server and fails against an unreachable
   assert.equal(down.report.checks.E4.result, 'PASS');
   assert.equal(down.code, 1);
 });
+
+test('the page snippet documented in cookbook/build.md passes E1 to E5, including with service workers blocked', async () => {
+  const md = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'cookbook', 'build.md'), 'utf8');
+  const blocks = [...md.matchAll(/```js\n(.*?)```/gs)].map(m => m[1]);
+  const pageSnippet = blocks.find(b => b.startsWith('// in the page'));
+  assert.ok(pageSnippet, 'build.md page snippet not found');
+  const app = APP.replace("if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');\n", '')
+    + 'function showUpdateButton() {}\n' + pageSnippet;
+  const dir = makeProject(compliantFiles({ 'site/app.js': app }));
+  const live = await serveDir(path.join(dir, 'site'));
+  try {
+    const { code, report } = await runCheck(dir, [...SITE, '--base', 'initial', '--url', live.url]);
+    for (const id of ['E1', 'E2', 'E3', 'E4', 'E5']) assert.equal(report.checks[id].result, 'PASS', `${id}: ${detailsText(report.checks[id])}`);
+    assert.equal(code, 0);
+  } finally {
+    await live.close();
+  }
+});
