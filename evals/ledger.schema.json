@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/davidycf/trip-cookbook/blob/main/evals/ledger.schema.json",
+  "title": "Trip ledger",
+  "description": "A thin safety contract: commitments, high-impact facts and key decisions. Calendar validity, time zones, date order and ID uniqueness are checked by evals/check.mjs in addition to this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ledger", "commitments", "facts", "decisions"],
+  "properties": {
+    "ledger": { "const": 1 },
+    "commitments": { "type": "array", "items": { "$ref": "#/$defs/commitment" } },
+    "facts": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
+    "decisions": { "type": "array", "items": { "$ref": "#/$defs/decision" } }
+  },
+  "$defs": {
+    "id": {
+      "description": "Stable, public-safe token, unique across all three arrays.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "text": { "type": "string", "pattern": "\\S" },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "time": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$" },
+    "commitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "what", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "what": { "$ref": "#/$defs/text" },
+        "status": { "enum": ["confirmed", "tentative"] },
+        "date": { "$ref": "#/$defs/date" },
+        "end_date": { "$ref": "#/$defs/date" },
+        "time": { "$ref": "#/$defs/time" },
+        "time_zone": { "$ref": "#/$defs/text" },
+        "private_ref": { "$ref": "#/$defs/text" }
+      },
+      "dependentRequired": {
+        "time": ["date", "time_zone"],
+        "time_zone": ["date"],
+        "end_date": ["date"]
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "claim", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "claim": { "$ref": "#/$defs/text" },
+        "status": { "enum": ["sourced", "estimate", "unverified"] },
+        "source": { "type": "string", "pattern": "^https?://\\S+$" },
+        "checked": { "$ref": "#/$defs/date" },
+        "basis": { "$ref": "#/$defs/text" }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["status"], "properties": { "status": { "const": "sourced" } } },
+          "then": { "required": ["source", "checked"] }
+        },
+        {
+          "if": { "required": ["status"], "properties": { "status": { "const": "estimate" } } },
+          "then": { "required": ["basis"] }
+        }
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "decision", "status"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "decision": { "$ref": "#/$defs/text" },
+        "status": { "enum": ["proposed", "approved"] },
+        "rejected": { "type": "array", "items": { "$ref": "#/$defs/text" } },
+        "revisit_if": { "$ref": "#/$defs/text" },
+        "approval": { "$ref": "#/$defs/approval" }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["status"], "properties": { "status": { "const": "approved" } } },
+          "then": { "required": ["approval"] }
+        },
+        {
+          "if": { "required": ["status"], "properties": { "status": { "const": "proposed" } } },
+          "then": { "not": { "required": ["approval"] } }
+        }
+      ]
+    },
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["on", "evidence"],
+      "properties": {
+        "on": { "$ref": "#/$defs/date" },
+        "evidence": { "$ref": "#/$defs/text" }
+      }
+    }
+  }
+}
