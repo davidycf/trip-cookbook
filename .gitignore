@@ -1,0 +1,11 @@
+# Private material: never committed or deployed
+private/
+
+# Checker dependencies and reports
+node_modules/
+.trip-check/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.log
