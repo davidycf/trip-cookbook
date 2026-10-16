@@ -77,6 +77,14 @@ test('structure inside HTML comments does not count', async () => {
   assert.doesNotMatch(d, /gone\.js|Context/);
 });
 
+test('a comment opener inside inline code is text, not a comment', async () => {
+  const code = await n1({ 'NOTES.md': notesFile({ context: 'The HTML comment opener is `<!--`, and ``a `<!--` b`` is code too.' }) });
+  assert.equal(code.check.result, 'PASS', detailsText(code.check));
+  const unmatched = await n1({ 'NOTES.md': notesFile({ context: 'An unmatched ` backtick is literal, so this is a comment: <!--', visibility: '-->\nApproved: nothing.' }) });
+  assert.equal(unmatched.check.result, 'FAIL');
+  assert.match(detailsText(unmatched.check), /required heading \\"## Open\\" is missing/);
+});
+
 test('ledger IDs ending in a full stop match exactly; otherwise a trailing full stop is punctuation', async () => {
   const ledger = JSON.parse(JSON.stringify(compliantFiles()['ledger.json']));
   ledger.commitments[0].id = 'flight-out.';

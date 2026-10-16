@@ -239,6 +239,21 @@ const NOTES_HEADINGS = ['Where to look', 'Context', 'Open', 'Recent changes', 'V
 const NOTES_NONEMPTY = ['Visibility', 'Build and deploy'];
 const LEDGER_REF = /\bledger:([A-Za-z0-9][A-Za-z0-9._-]*)/g;
 
+// The next HTML comment opener outside inline code spans, or -1. A backtick run opens a
+// code span only when a run of the same length closes it later on the line.
+function commentStart(s) {
+  let i = 0;
+  for (;;) {
+    const open = s.indexOf('<!--', i);
+    const tick = s.indexOf('`', i);
+    if (open < 0) return -1;
+    if (tick < 0 || open < tick) return open;
+    const run = s.slice(tick).match(/^`+/)[0].length;
+    const close = s.slice(tick + run).search(new RegExp(`(?<!\`)\`{${run}}(?!\`)`));
+    i = close < 0 ? tick + run : tick + run + close + run;
+  }
+}
+
 // Splits NOTES.md into level-2 sections. Lines inside fenced code blocks never count as
 // headings or table rows, but they stay in the section's text. HTML comments aren't
 // rendered, so they count for nothing at all.
@@ -259,7 +274,7 @@ function parseNotes(text) {
           comment = false;
           rest = rest.slice(end + 3);
         } else {
-          const start = rest.indexOf('<!--');
+          const start = commentStart(rest);
           if (start < 0) { visible += rest; break; }
           visible += rest.slice(0, start);
           comment = true;
