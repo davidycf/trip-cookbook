@@ -12,6 +12,7 @@ Project orientation: a fresh session, after a gap and with any agent, finds the 
 - Checker: E6 serves the baseline build from Git, prepares a browser offline with it, then switches to the current build. It fails when a route still shows old content and no service-worker update is found, which is what happens when content changes but the cache name doesn't. The cold-start test found an agent making exactly this change.
 - `NOTES.md` opens with a line pointing to `AGENTS.md`, checked by N1. In the cold-start test, agents opened `NOTES.md` first and never read `AGENTS.md`.
 - Rubric: R11, notes guide correctly.
+- Cold-start tests with fresh agent sessions, their results and the fixes they led to: `evals/test/cold-start.md`.
 - The weekend sample's `NOTES.md` is restructured as the worked example.
 - README: what to tell your agent when you come back to your trip.
 
