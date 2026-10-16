@@ -762,8 +762,9 @@ async function runSuite(browser, suite, siteReal, routes, confirmedIds, thirdPar
 // E6. Follows the travellers' update steps (cookbook/build.md, section 6) in one browser:
 // prepare the baseline build offline; the server switches to the current build; open each
 // route online; take any update by closing every page and reopening; prepare again; go
-// offline. Every route must then show the current content, and every same-origin file it
-// loads must match the current build byte for byte, so style, image and data changes count.
+// offline. Every route must then show the current content, and every same-origin response
+// the offline page itself received must match the current build byte for byte, so style,
+// image and data changes count. A response that can't be read makes E6 incomplete.
 async function settleUpdate() {
   const reg = await navigator.serviceWorker?.getRegistration();
   if (!reg) return { failed: false };
@@ -779,34 +780,21 @@ async function settleUpdate() {
   return { failed: state === 'redundant' || state === 'installing', state };
 }
 
-async function offlineFiles() {
-  const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-  const urls = new Set([location.href.split('#')[0], ...performance.getEntriesByType('resource').map(e => e.name)]
-    .filter(u => new URL(u).origin === location.origin));
-  const out = {};
-  for (const u of urls) {
-    try {
-      const r = await fetch(u);
-      out[u] = r.ok ? hex(await crypto.subtle.digest('SHA-256', await r.arrayBuffer())) : null;
-    } catch { out[u] = null; }
-  }
-  return out;
-}
-
 async function runUpdate(browser, baseDir, siteReal, routes, expected) {
   const served = { dir: baseDir };
   const srv = await startServer(served, '/');
   const context = await browser.newContext({ viewport: CONFIG.viewport });
-  const out = { notApplicable: null, details: [], notes: [] };
+  const out = { notApplicable: null, details: [], notes: [], incomplete: [] };
   const fail = (route, problem) => out.details.push({ route, problem });
-  const visit = async (route, then) => {
+  const visit = async (route, then, before) => {
     const page = await context.newPage();
     const st = instrument(page, srv.origin);
+    before?.(page);
     try {
       const resp = await page.goto(routeUrl(srv.base, route), { waitUntil: 'load', timeout: CONFIG.readyTimeoutMs });
       if (!resp || resp.status() >= 400) throw new Error(resp ? `HTTP ${resp.status()}` : 'no document response');
       await waitReady(page, st);
-      return await then(page);
+      return await then(page, st);
     } finally {
       await page.close();
     }
@@ -865,18 +853,26 @@ async function runUpdate(browser, baseDir, siteReal, routes, expected) {
     }
     await context.setOffline(true);
     for (const route of routes) {
+      const responses = [];
       try {
-        await visit(route, async page => {
+        await visit(route, async (page, st) => {
           const now = await page.evaluate(capture, []);
           if (now.text !== expected.get(route)) {
             fail(route, 'after the update steps, the offline copy still shows different content from the current build. Change the service worker (for example its cache name) with every change, and make sure the new version installs and saves the new files: cookbook/build.md, section 6');
-            return;
           }
-          const stale = Object.entries(await page.evaluate(offlineFiles))
-            .filter(([u, h]) => h && currentHash(u) !== undefined && currentHash(u) !== h)
-            .map(([u]) => new URL(u).pathname);
-          if (stale.length) fail(route, `after the update steps, the offline copies of ${stale.join(', ')} still differ from the current build. Change the service worker (for example its cache name) with every change: cookbook/build.md, section 6`);
-        });
+          for (const f of st.failed) fail(route, `after the update steps, ${new URL(f.url).pathname} is not available offline (${f.status ? `HTTP ${f.status}` : f.error})`);
+          const stale = [];
+          for (const r of responses) {
+            if (new URL(r.url()).origin !== srv.origin || r.status() >= 300) continue;
+            const name = new URL(r.url()).pathname;
+            const want = currentHash(r.url());
+            if (want === undefined) continue;
+            let body;
+            try { body = await r.body(); } catch (e) { out.incomplete.push(`${route}: the offline response for ${name} could not be read (${short(e)})`); continue; }
+            if (createHash('sha256').update(body).digest('hex') !== want) stale.push(name);
+          }
+          if (stale.length) fail(route, `after the update steps, the offline copies of ${[...new Set(stale)].join(', ')} still differ from the current build. Change the service worker (for example its cache name) with every change: cookbook/build.md, section 6`);
+        }, page => page.on('response', r => responses.push(r)));
       } catch (e) {
         fail(route, `offline after the update steps: ${short(e)}`);
       }
@@ -1456,7 +1452,7 @@ async function main() {
       if (routes.some(r => !expected.get(r))) return { result: SKIPPED, details: ['not run: the current build did not render every route (see E1 and E4)'] };
       const r = await runUpdate(browser, baseDir, siteReal, routes, expected);
       if (r.notApplicable) return { result: NA, details: [r.notApplicable, ...r.notes] };
-      return { result: r.details.length ? FAIL : PASS, details: [...r.details, ...r.notes] };
+      return { result: r.details.length ? FAIL : r.incomplete.length ? SKIPPED : PASS, details: [...r.details, ...r.incomplete, ...r.notes] };
     } finally {
       fs.rmSync(baseDir, { recursive: true, force: true });
     }

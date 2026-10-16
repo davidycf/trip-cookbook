@@ -49,7 +49,7 @@ Findings:
   - it takes any update by closing every page and reopening the site, then prepares again;
   - it goes offline.
 
-  Every route must then show the current content, and every file it loads must match the current build. Review of the first version showed that accepting "a new service worker was found" or "the page looks current online" lets stale assets, failed installs and network-first workers that never save fresh copies through, so E6 checks where the traveller ends up instead.
+  Every route must then show the current content, and every response the offline page receives must match the current build. Review of the first version showed that accepting "a new service worker was found" or "the page looks current online" lets stale assets, failed installs and network-first workers that never save fresh copies through, so E6 checks where the traveller ends up instead.
   - E6 is not applicable with `--base initial`.
   - It's also not applicable when the output directory isn't committed, and the report then asks for a manual check.
   - Run against the first round's projects, E6 fails case 1 on Sunday's route and passes case 2.

@@ -122,3 +122,18 @@ test('a network-first worker that never saves fresh responses fails E6', async (
   assert.equal(code, 1);
 });
 
+
+test('stale files are found even when the worker routes by request destination', async () => {
+  // Cached responses only for real page loads; generic fetch() calls go to the network.
+  const byDestination = sw => sw.replace("if (e.request.method !== 'GET' || url.origin !== location.origin) return;",
+    "if (e.request.method !== 'GET' || url.origin !== location.origin || e.request.destination === '') return;");
+  const dir = published({ ...STYLED, 'site/sw.js': byDestination(STYLED['site/sw.js']) });
+  assert.notEqual(byDestination(STYLED['site/sw.js']), STYLED['site/sw.js']);
+  write(dir, { 'site/style.css': 'body { color: #036; }\n' });
+  commitAll(dir, 'Darker text');
+  const { code, report } = await check(dir);
+  assert.equal(report.checks.E4.result, 'PASS', detailsText(report.checks.E4));
+  assert.equal(report.checks.E6.result, 'FAIL');
+  assert.match(detailsText(report.checks.E6), /offline copies of \/style.css still differ/);
+  assert.equal(code, 1);
+});
