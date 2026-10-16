@@ -82,3 +82,14 @@ test('missing --base is a setup error that fails G1', async () => {
   assert.equal(report.checks.G1.result, 'FAIL');
   assert.match(detailsText(report.checks.G1), /--base is required/);
 });
+
+test('private/ or .git nested anywhere in the output fails G1', async () => {
+  for (const nested of ['site/assets/private/notes.md', 'site/vendor/lib/.git/HEAD']) {
+    const dir = makeProject(compliantFiles({ [nested]: 'not for deployment\n' }), { commit: false });
+    const { code, report } = await runCheck(dir, [...SITE, '--base', 'initial']);
+    assert.equal(report.checks.G1.result, 'FAIL', nested);
+    assert.match(detailsText(report.checks.G1), /at any depth/);
+    assert.equal(report.checks.E1.result, 'SKIPPED');
+    assert.equal(code, 1);
+  }
+});

@@ -27,7 +27,8 @@ const CONFIG = {
   overflowTolerancePx: 1,
   fetchTimeoutMs: 10000,
   maxRedirects: 5,
-  maxScanBytes: 5 * 1024 * 1024,
+  scanChunkBytes: 1024 * 1024,   // large text is scanned in overlapping chunks, never skipped
+  scanOverlapBytes: 8192,
 };
 const SUITES = [
   { name: 'root', prefix: '/' },
@@ -423,7 +424,7 @@ const overflowOf = () => document.documentElement.scrollWidth - document.documen
 
 // One prefix: online visits (E1/E2, L2 and rendered text on root), offline preparation,
 // then offline navigation and reload with the server stopped (E4).
-async function runSuite(browser, suite, siteReal, routes, confirmedIds, thirdParty) {
+async function runSuite(browser, suite, siteReal, routes, confirmedIds, thirdParty, terms) {
   const srv = await startServer(siteReal, suite.prefix);
   const context = await browser.newContext({ viewport: CONFIG.viewport });
   const results = [];
@@ -476,14 +477,16 @@ async function runSuite(browser, suite, siteReal, routes, confirmedIds, thirdPar
         off.reloadText = second.text;
         for (const [label, cap] of [['after navigation', first], ['after reload', second]]) {
           if (!cap.text) off.errors.push(`offline page is empty ${label}`);
-          else if (cap.text !== rec.prepared.text) off.errors.push(`offline content differs from the prepared online content ${label}: ${firstDifference(rec.prepared.text, cap.text)}`);
+          else if (cap.text !== rec.prepared.text) off.errors.push(`offline content differs from the prepared online content ${label}: ${firstDifference(redactText(rec.prepared.text, terms), redactText(cap.text, terms))}`);
           const missing = rec.prepared.visible.filter(id => !cap.visible.includes(id));
           if (missing.length) off.errors.push(`confirmed ledger elements not visible offline ${label}: ${missing.join(', ')}`);
         }
       } catch (e) {
         off.errors.push(`offline load failed: ${short(e)}`);
       }
-      if (st.pageErrors.length) off.errors.push(...st.pageErrors.map(m => `uncaught exception offline: ${m}`));
+      off.errors.push(...st.pageErrors.map(m => `uncaught exception offline: ${m}`));
+      off.errors.push(...st.failed.map(f => `same-origin resource unavailable offline: ${f.url} (${f.status ? `HTTP ${f.status}` : f.error})`));
+      off.errors.push(...st.consoleErrors.map(m => `console error offline: ${m}`));
       for (const t of st.thirdParty) thirdParty.push({ suite: suite.name, route: rec.route, phase: 'offline', ...t });
       await page.close();
       rec.offline = off;
@@ -667,6 +670,17 @@ function scanText(text, terms) {
   }
   return found;
 }
+// Replaces every pattern and custom-term match in free text with its redacted form.
+function redactText(text, terms) {
+  let out = text;
+  for (const f of scanText(text, terms)) {
+    const label = `[${f.pattern === 'custom-term' ? redact(f) : `${f.pattern} ${redact(f)}`}]`;
+    out = f.pattern === 'custom-term'
+      ? out.replace(new RegExp(f.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), label)
+      : out.split(f.value).join(label);
+  }
+  return out;
+}
 function redact(f) {
   if (f.pattern === 'custom-term') return `custom term #${f.term}`;
   const v = f.value;
@@ -674,6 +688,16 @@ function redact(f) {
   return v.slice(0, 2) + '•'.repeat(Math.min(v.length - 4, 12)) + v.slice(-2);
 }
 const isBinary = buf => buf.subarray(0, 8000).includes(0);
+
+// private/ and .git entries anywhere in the output tree. Symbolic links are not followed.
+function forbiddenEntries(dir, base = dir, found = []) {
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const abs = path.join(dir, ent.name);
+    if (ent.name === 'private' || ent.name === '.git') found.push(posix(path.relative(base, abs)));
+    else if (ent.isDirectory() && !ent.isSymbolicLink()) forbiddenEntries(abs, base, found);
+  }
+  return found;
+}
 
 function loadAllowlist(file, errors) {
   if (!fs.existsSync(file)) return [];
@@ -718,10 +742,13 @@ function privacyScan({ repo, rootRel, siteReal, rendered, renderedComplete, allo
     }
   };
   const skip = (where, reason) => coverage.skipped_non_text.push({ path: where, reason });
-  const scanBuffer = (scope, where, buf, extra) => {
-    if (buf.length > CONFIG.maxScanBytes) return skip(where, 'larger than 5 MB');
-    if (isBinary(buf)) return skip(where, 'binary');
-    consider(scope, where, buf.toString('utf8'), extra);
+  const scanBuffer = (scope, where, buf, extra = {}) => {
+    if (isBinary(buf)) return skip(where, scope === 'history' ? `binary, in history at ${extra.commit}` : 'binary');
+    const step = CONFIG.scanChunkBytes;
+    if (buf.length <= step) return consider(scope, where, buf.toString('utf8'), extra);
+    for (let i = 0; i < buf.length; i += step) {
+      consider(scope, where, buf.subarray(Math.max(0, i - CONFIG.scanOverlapBytes), i + step).toString('utf8'), extra);
+    }
   };
 
   // Current tracked files (working tree), and staged contents that differ from it.
@@ -792,8 +819,7 @@ function privacyScan({ repo, rootRel, siteReal, rendered, renderedComplete, allo
       problems.push(`history blob for ${p} is missing locally (partial clone?); history coverage is incomplete`);
       continue;
     }
-    if (buf.length > CONFIG.maxScanBytes || isBinary(buf)) continue;
-    consider('history', p, buf.toString('utf8'), { commit: commit.slice(0, 12) });
+    scanBuffer('history', p, buf, { commit: commit.slice(0, 12) });
   }
   coverage.skipped_non_text = dedupeBy(coverage.skipped_non_text, s => s.path);
   return { findings, excepted, selfRefs, problems, coverage };
@@ -898,12 +924,16 @@ async function main() {
         const down = path.relative(repoReal, real);
         if (!down.startsWith('..') && down.split(path.sep).some(s => s === 'private' || s === '.git')) problems.push('--site is inside private/ or .git/');
       }
-      for (const name of ['private', '.git']) if (fs.existsSync(path.join(real, name))) problems.push(`--site contains ${name}; it must never be part of the deployable output`);
+      for (const rel of forbiddenEntries(real)) problems.push(`--site contains ${rel}; private/ and .git must never be part of the deployable output, at any depth`);
       if (!fs.existsSync(path.join(real, 'index.html'))) problems.push('--site has no index.html entry page');
       g1.push(...problems);
       if (!problems.length) siteReal = real;
     }
   }
+
+  // Custom sensitive terms: used by P1 and to redact every diagnostic the report carries.
+  const termsFile = path.join(root, 'private', 'sensitive.txt');
+  const terms = fs.existsSync(termsFile) ? fs.readFileSync(termsFile, 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean) : [];
 
   // Current ledger.
   let ledger = null;
@@ -981,7 +1011,7 @@ async function main() {
     if (browser) {
       try {
         suites = {};
-        for (const s of SUITES) suites[s.name] = await runSuite(browser, s, siteReal, routes, confirmedIds, report.third_party);
+        for (const s of SUITES) suites[s.name] = await runSuite(browser, s, siteReal, routes, confirmedIds, report.third_party, terms);
         if (opts.url) {
           let liveBase = null;
           try {
@@ -1057,8 +1087,6 @@ async function main() {
   const allowErrors = [];
   const allowlist = loadAllowlist(path.join(root, 'evals', 'privacy-fixtures.json'), allowErrors);
   if (repoReal) {
-    const termsFile = path.join(root, 'private', 'sensitive.txt');
-    const terms = fs.existsSync(termsFile) ? fs.readFileSync(termsFile, 'utf8').split(/\r?\n/).map(s => s.trim()).filter(Boolean) : [];
     const rendered = suites ? suites.root.filter(r => r.dom).map(r => ({ route: r.route, ...r.dom })) : [];
     const renderedComplete = !!suites && rendered.length === routes.length;
     const scan = privacyScan({ repo: repoReal, rootRel, siteReal, rendered, renderedComplete, allowlist, allowlistRel, terms });
@@ -1101,6 +1129,11 @@ async function main() {
   const ok = required.every(id => report.checks[id].result === PASS || report.checks[id].result === NA);
   const exitCode = argErrors.length ? 2 : ok ? 0 : 1;
   report.exit_code = exitCode;
+
+  const scrub = v => (typeof v === 'string' ? redactText(v, terms)
+    : Array.isArray(v) ? v.map(scrub)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, scrub(x)])) : v);
+  for (const key of ['checks', 'third_party', 'agent_reviewed', 'user_confirmation']) report[key] = scrub(report[key]);
 
   const outDir = path.join(root, '.trip-check');
   fs.mkdirSync(outDir, { recursive: true });

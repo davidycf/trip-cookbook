@@ -1,7 +1,9 @@
 // E4: offline preparation and comparison (spec sections 6.2 and 6.5).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeProject, runCheck, compliantFiles, APP, INDEX, swSource, SITE, detailsText } from './helpers.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { makeProject, runCheck, compliantFiles, write, APP, INDEX, swSource, SITE, detailsText } from './helpers.mjs';
 
 test('offline route unavailable fails E4', async () => {
   // The service worker precaches only ./ and app.js and never caches page2.html.
@@ -62,4 +64,32 @@ test('data-offline-volatile wrapping a confirmed ledger element fails E4', async
   const { report } = await runCheck(dir, [...SITE, '--base', 'initial']);
   assert.equal(report.checks.E4.result, 'FAIL');
   assert.match(detailsText(report.checks.E4), /\\"flight-out\\" is inside a data-offline-volatile element/);
+});
+
+test('a same-origin resource missing offline fails E4 even when the text matches', async () => {
+  // style.css loads online but is not precached, so it fails offline while the text stays the same.
+  const dir = makeProject(compliantFiles({
+    'evals/routes.txt': '.\n',
+    'site/index.html': INDEX.replace('</head>', '<link rel="stylesheet" href="style.css">\n</head>'),
+    'site/style.css': 'body { font-family: serif; }\n',
+    'site/sw.js': swSource(['./', 'app.js']),
+  }));
+  const { report } = await runCheck(dir, [...SITE, '--base', 'initial']);
+  assert.equal(report.checks.E1.result, 'PASS', detailsText(report.checks.E1));
+  assert.equal(report.checks.E4.result, 'FAIL');
+  assert.match(detailsText(report.checks.E4), /same-origin resource unavailable offline: .*style\.css/);
+});
+
+test('offline-difference excerpts are redacted in both reports', async () => {
+  const term = 'Qz' + Math.random().toString(36).slice(2, 10);
+  const app = APP.replace("render();\n", `render();\nif (navigator.onLine) document.getElementById('app').insertAdjacentHTML('afterbegin', '<p>Guest: ${term}</p>');\n`);
+  const dir = makeProject(compliantFiles({ 'evals/routes.txt': '.\n', 'site/app.js': app }));
+  write(dir, { 'private/sensitive.txt': term + '\n' });
+  const { report } = await runCheck(dir, [...SITE, '--base', 'initial']);
+  assert.equal(report.checks.E4.result, 'FAIL');
+  assert.match(detailsText(report.checks.E4), /custom term #1/);
+  const md = fs.readFileSync(path.join(dir, '.trip-check', 'report.md'), 'utf8');
+  const json = fs.readFileSync(path.join(dir, '.trip-check', 'report.json'), 'utf8');
+  assert.ok(!md.toLowerCase().includes(term.toLowerCase()), 'report.md must not contain the term');
+  assert.ok(!json.toLowerCase().includes(term.toLowerCase()), 'report.json must not contain the term');
 });

@@ -2,6 +2,8 @@
 // Synthetic values are generated at runtime, so this file contains none in full.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { makeProject, runCheck, compliantFiles, commitAll, gitIn, write, syntheticCard, APP, SITE } from './helpers.mjs';
 
 const CARD = syntheticCard();
@@ -89,4 +91,25 @@ test('a historical exception does not cover the same blob at a second path', asy
   assert.equal(report.checks.P1.result, 'FAIL');
   assert.ok(report.privacy.findings.some(f => f.scope === 'history' && f.path === 'b.md'));
   assert.ok(!report.privacy.findings.some(f => f.path === 'a.md'));
+});
+
+test('a text file larger than one scan chunk is scanned in full', async () => {
+  const big = 'x'.repeat(5.5 * 1024 * 1024) + `\nCard ${CARD}\n`;
+  const dir = makeProject(compliantFiles({ 'data/big.txt': big }));
+  const { report } = await runCheck(dir, [...SITE, '--base', 'initial']);
+  assert.equal(report.checks.P1.result, 'FAIL');
+  assert.ok(findingsIn(report, 'tracked').some(f => f.path === 'data/big.txt'));
+  assert.ok(!report.privacy.coverage.skipped_non_text.some(s => s.path === 'data/big.txt'));
+});
+
+test('a binary file that exists only in history is listed for manual review', async () => {
+  const dir = makeProject(compliantFiles());
+  write(dir, { 'old/screenshot.png': '' });
+  fs.writeFileSync(path.join(dir, 'old/screenshot.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0x0d, 1, 2, 3]));
+  commitAll(dir, 'add screenshot');
+  gitIn(dir, 'rm', '-q', 'old/screenshot.png');
+  commitAll(dir, 'remove screenshot');
+  const { report } = await runCheck(dir, [...SITE, '--base', 'initial']);
+  assert.ok(report.privacy.coverage.skipped_non_text.some(s => s.path === 'old/screenshot.png' && /history/.test(s.reason)));
+  assert.ok(report.agent_reviewed.some(a => a.id === 'binary-files' && a.item.includes('old/screenshot.png')));
 });
