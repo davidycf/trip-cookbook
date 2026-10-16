@@ -240,12 +240,37 @@ const NOTES_NONEMPTY = ['Visibility', 'Build and deploy'];
 const LEDGER_REF = /\bledger:([A-Za-z0-9][A-Za-z0-9._-]*)/g;
 
 // Splits NOTES.md into level-2 sections. Lines inside fenced code blocks never count as
-// headings or table rows, but they stay in the section's text.
+// headings or table rows, but they stay in the section's text. HTML comments aren't
+// rendered, so they count for nothing at all.
 function parseNotes(text) {
   const sections = [];
   let fence = null;
+  let comment = false;
   let current = null;
-  text.split(/\r?\n/).forEach((line, i) => {
+  text.split(/\r?\n/).forEach((raw, i) => {
+    let line = raw;
+    if (!fence) {
+      let visible = '';
+      let rest = line;
+      while (rest) {
+        if (comment) {
+          const end = rest.indexOf('-->');
+          if (end < 0) break;
+          comment = false;
+          rest = rest.slice(end + 3);
+        } else {
+          const start = rest.indexOf('<!--');
+          if (start < 0) { visible += rest; break; }
+          visible += rest.slice(0, start);
+          comment = true;
+          rest = rest.slice(start + 4);
+        }
+      }
+      if (visible !== line) {
+        if (!visible.trim()) { current?.lines.push({ text: raw, code: true, hidden: true }); return; }
+        line = visible;
+      }
+    }
     const f = line.match(/^ {0,3}(`{3,}|~{3,})/);
     if (fence) {
       if (f && f[1][0] === fence[0] && f[1].length >= fence.length && !line.slice(f[0].length).trim()) fence = null;
@@ -338,7 +363,7 @@ function checkNotes(root, ledgerIds) {
   }
   for (const h of NOTES_NONEMPTY) {
     const [s] = found.get(h);
-    if (s && found.get(h).length === 1 && !s.lines.some(l => l.text.trim())) fails.push(`"## ${h}" is empty`);
+    if (s && found.get(h).length === 1 && !s.lines.some(l => !l.hidden && l.text.trim())) fails.push(`"## ${h}" is empty`);
   }
 
   const where = found.get('Where to look');
@@ -379,9 +404,15 @@ function checkNotes(root, ledgerIds) {
     if (unchecked.length) skips.push(`route tokens not checked because ${routesWhy}: ${unchecked.map(t => `\`${t}\``).join(', ')}`);
   }
 
-  const refs = [...new Set([...text.matchAll(LEDGER_REF)].map(m => m[1].replace(/\.+$/, '')))];
+  // An exact ID wins; otherwise trailing full stops are read as sentence punctuation.
+  const refs = [...new Set([...text.matchAll(LEDGER_REF)].map(m => m[1]))];
   if (refs.length && !ledgerIds) skips.push(`ledger references not checked because ledger.json could not be read: ${refs.map(r => `ledger:${r}`).join(', ')}`);
-  else for (const r of refs) if (!ledgerIds.has(r)) fails.push(`ledger:${r} has no matching id in ledger.json`);
+  else {
+    for (const r of refs) {
+      const bare = r.replace(/\.+$/, '');
+      if (!ledgerIds.has(r) && !(bare && ledgerIds.has(bare))) fails.push(`ledger:${bare || r} has no matching id in ledger.json`);
+    }
+  }
 
   return { result: fails.length ? FAIL : skips.length ? SKIPPED : PASS, details: [...fails, ...skips] };
 }
@@ -406,7 +437,7 @@ function notesChanges(repo, rootRel) {
     const [commit, date] = base.split('\t');
     out.baseline = { commit, date };
     out.history.available = true;
-    const log = tryGit(repo, ['-c', 'core.quotePath=false', 'log', '--no-renames', '--format=%x1e%H%x1f%ad%x1f%s', '--date=short', '--name-only', `${commit}..HEAD`, '--', spec]) ?? '';
+    const log = tryGit(repo, ['-c', 'core.quotePath=false', 'log', '--no-renames', '--diff-merges=first-parent', '--format=%x1e%H%x1f%ad%x1f%s', '--date=short', '--name-only', `${commit}..HEAD`, '--', spec]) ?? '';
     for (const rec of log.split('\x1e').slice(1)) {
       const [head, ...rest] = rec.split('\n');
       const [sha, d, subject] = head.split('\x1f');

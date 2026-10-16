@@ -28,7 +28,7 @@ These level-2 headings are required, each once, in this order. You can add other
 
 ### Pointers
 
-The checker (N1) checks pointers only where they're declared: backticked tokens in the **Location** column of the table under `## Where to look`. Everything else is ordinary prose.
+The checker (N1) checks pointers only where they're declared: backticked tokens in the **Location** column of the table under `## Where to look`. Everything else is ordinary prose, and HTML comments (`<!-- … -->`) don't count: headings and tables inside them are ignored.
 
 ```markdown
 ## Where to look
@@ -54,7 +54,7 @@ Token forms, recognized in this order. Paths are relative to the project root:
 - Anything that looks like a site route needs `route:`. Without it, `day/sunday/` is a project path, and `day.html#map` is a key path into `day.html`.
 - Key paths go through object keys only, never into arrays: indices go stale with ordinary edits. Point at the array itself (`plan.json#days`) and the route that shows it.
 - Point at JSON keys only; for other files, point at the file.
-- **Ledger references** are written `ledger:<id>` and may appear anywhere in `NOTES.md`. N1 checks each against `ledger.json`. A full stop right after the ID isn't part of it.
+- **Ledger references** are written `ledger:<id>` and may appear anywhere in `NOTES.md`. N1 checks each against `ledger.json`. A full stop right after the ID is read as punctuation, unless the ID itself ends with one.
 
 N1 shows that targets exist. Whether they're the right targets is rubric item R11.
 
@@ -409,7 +409,7 @@ Cloudflare also offers static hosting through Workers; the same rules apply.
 Publish only when all of these hold:
 
 1. The build is fresh, and the checker's required automated checks pass at both prefixes.
-2. Rubric items in `evals/rubric.md` are resolved, with reasons. `NOTES.md` was updated and tidied within this change, before these checks (section 1).
+2. Rubric items in `evals/rubric.md` are resolved, with reasons. `NOTES.md` was reviewed, and any update or tidying that section 1 calls for was made within this change, before these checks. Unchanged notes are fine when nothing called for an edit.
 3. Every protected change has specific authorization, and the user has answered every open third-column item.
 4. The visibility review is done (`privacy.md`), and covers this content.
 5. The deployment matches the checked output: same build, same path.

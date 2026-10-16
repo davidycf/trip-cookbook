@@ -64,6 +64,31 @@ test('extra headings are accepted, and a required heading inside a code block do
   assert.match(detailsText(check), /required heading \\"## Context\\" is missing/);
 });
 
+test('structure inside HTML comments does not count', async () => {
+  const wrapped = await n1({ 'NOTES.md': `# Notes\n\n<!--\n${notesFile().replace('# Notes\n', '')}-->\n` });
+  assert.equal(wrapped.check.result, 'FAIL');
+  assert.match(detailsText(wrapped.check), /required heading \\"## Where to look\\" is missing/);
+
+  const hiddenRow = notesFile({ where: '| Overview | `route:.` |\n<!-- | Old | `site/gone.js` | -->', visibility: '<!-- to do -->', context: '## Ideas <!-- later -->' });
+  const { check } = await n1({ 'NOTES.md': hiddenRow.replace('## Context\n', '## Context <!-- see ledger -->\n') });
+  assert.equal(check.result, 'FAIL');
+  const d = detailsText(check);
+  assert.match(d, /\\"## Visibility\\" is empty/);
+  assert.doesNotMatch(d, /gone\.js|Context/);
+});
+
+test('ledger IDs ending in a full stop match exactly; otherwise a trailing full stop is punctuation', async () => {
+  const ledger = JSON.parse(JSON.stringify(compliantFiles()['ledger.json']));
+  ledger.commitments[0].id = 'flight-out.';
+  const notes = notesFile({ context: 'Fixed: ledger:flight-out. Still open: ledger:hotel.' });
+  const ok = await n1({ 'ledger.json': ledger, 'NOTES.md': notes });
+  assert.equal(ok.report.checks.L1.result, 'PASS', detailsText(ok.report.checks.L1));
+  assert.equal(ok.check.result, 'PASS', detailsText(ok.check));
+  const bad = await n1({ 'ledger.json': ledger, 'NOTES.md': notesFile({ context: 'Gone: ledger:boat-trip.' }) });
+  assert.equal(bad.check.result, 'FAIL');
+  assert.match(detailsText(bad.check), /ledger:boat-trip has no matching id/);
+});
+
 test('broken file and JSON-key pointers fail N1, each named', async () => {
   const tokens = ['site/missing.js', 'site/data.json#days.sun', 'site/data.json#list.a', 'site/data.json#toString', 'site/data.json#constructor', 'site/app.js#render', 'site/data.json#days..sat'];
   const { check } = await n1({ 'NOTES.md': notesFile({ where: where(...tokens) }) });
@@ -170,6 +195,21 @@ test('commits and uncommitted edits since the last notes commit are listed, with
   assert.match(block, /Swap Saturday lunch: `site\/app.js`, `site\/data.json`|Swap Saturday lunch: `site\/data.json`, `site\/app.js`/);
   assert.doesNotMatch(block, /AGENTS|COOKBOOK|cookbook\/|reference\/|evals\/check/);
   neutral(block, n);
+});
+
+test('files changed by a merge commit itself are listed', async () => {
+  const dir = makeProject(compliantFiles({ 'site/data.json': DATA, 'README.md': '# Trip\n' }));
+  gitIn(dir, 'switch', '-q', '-c', 'side');
+  write(dir, { 'README.md': '# Trip, side edit\n' });
+  commitAll(dir, 'Side edit');
+  gitIn(dir, 'switch', '-q', 'main');
+  gitIn(dir, 'merge', '-q', '--no-ff', '--no-commit', 'side');
+  write(dir, { 'site/data.json': { days: { sat: { lunch: 'Fixed during the merge' } } } });
+  commitAll(dir, 'Merge side');
+  const { report } = await runCheck(dir, [...NO_SITE, '--base', 'initial']);
+  const merge = report.notes_changes.history.commits.find(c => c.subject === 'Merge side');
+  assert.ok(merge, JSON.stringify(report.notes_changes.history));
+  assert.ok(merge.files.includes('site/data.json'), JSON.stringify(merge.files));
 });
 
 test('notes never committed: history is unavailable, working-tree changes are still listed', async () => {
