@@ -52,7 +52,7 @@ Then paste this one-line opener:
 Build me a trip website with the Trip Cookbook at https://github.com/davidycf/trip-cookbook — read its AGENTS.md first.
 ```
 
-During setup the agent copies the Cookbook's `cookbook/` and `evals/` folders into your project, then installs the checker. These are the commands it runs (you don't need to run them yourself):
+During setup the agent copies the Cookbook's `AGENTS.md`, `cookbook/`, `reference/` and `evals/` into your project, along with its license notice as `COOKBOOK_LICENSE`, then installs the checker. These are the commands it runs (you don't need to run them yourself):
 
 ```bash
 npm --prefix evals ci

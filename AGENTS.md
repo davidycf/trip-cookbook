@@ -50,7 +50,12 @@ When requirements are already sufficient, state what you understood and proceed.
 2. Run `git init` if needed. **Create `.gitignore` before anything else**, excluding at least `private/`, `evals/node_modules/` and `.trip-check/`.
 3. Clone the Cookbook into a temporary directory outside the project, at the latest release tag (or `main` if none exists):
    `git clone --depth 1 --branch <tag> https://github.com/davidycf/trip-cookbook <temp-dir>`
-4. Copy `cookbook/` and `evals/` into the project, leaving out `evals/test/`. Create `evals/routes.txt` from `evals/routes.example.txt`. Write the tag and commit to `COOKBOOK_VERSION`. Remove the temporary clone.
+4. Copy these from the clone into the project:
+   - `AGENTS.md`, to the project root, so later sessions in the project start from these rules. If your agent reads a different instructions file (for example `CLAUDE.md`), create that file too, containing only a pointer to `AGENTS.md`.
+   - `cookbook/`, `reference/` and `evals/`, leaving out `evals/test/`.
+   - `LICENSE`, saved as `COOKBOOK_LICENSE`. The MIT notice must travel with the copied material, and naming it this way leaves `LICENSE` free for the user's own choice.
+
+   Then create `evals/routes.txt` from `evals/routes.example.txt`, write the tag and commit to `COOKBOOK_VERSION`, and remove the temporary clone.
 5. Install the checker: `npm --prefix evals ci`, then `npm --prefix evals exec -- playwright install chromium`.
 6. Create `private/` for booking details, consent records and `private/sensitive.txt` (terms the privacy scan must never find in public output, one per line).
 7. Keep the deployable site in its own directory (for example `site/`, `docs/` or a build output directory), never the repository root.
